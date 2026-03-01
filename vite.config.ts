@@ -13,6 +13,16 @@ export default defineConfig(() => {
     },
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
+      proxy: {
+        '/api': {
+          target: 'https://apifreellm.com',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/chat/, '/api/v1/chat'),
+          headers: {
+            'Authorization': `Bearer ${process.env.VITE_LLM_API_KEY || 'apf_ivcabm4cxcdvaxh8ju1gxxji'}`
+          }
+        }
+      }
     },
   };
 });

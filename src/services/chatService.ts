@@ -1,7 +1,7 @@
 import { Message, Attachment } from "../types";
 import { CAR_DATABASE } from "../data/cars";
 
-const apiKey = import.meta.env.VITE_LLM_API_KEY;
+
 
 const inventoryString = CAR_DATABASE.map(c => `ID: ${c.id} | ${c.year} ${c.brand} ${c.model} | ₵${c.price.toLocaleString()}`).join('\n');
 
@@ -185,12 +185,9 @@ User: ${newMessage}
 A: Respond naturally and helpfully.`;
 
   try {
-    const response = await fetch('https://apifreellm.com/api/v1/chat', {
+    const response = await fetch('/api/chat', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: fullPrompt })
     });
 
