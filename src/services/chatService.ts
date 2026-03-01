@@ -1,10 +1,7 @@
-import { GoogleGenAI } from "@google/genai";
 import { Message, Attachment } from "../types";
 import { CAR_DATABASE } from "../data/cars";
 
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-
-const ai = new GoogleGenAI({ apiKey });
+const apiKey = import.meta.env.VITE_LLM_API_KEY;
 
 const inventoryString = CAR_DATABASE.map(c => `ID: ${c.id} | ${c.year} ${c.brand} ${c.model} | ₵${c.price.toLocaleString()}`).join('\n');
 
@@ -174,11 +171,10 @@ Act like a top-performing sales consultant — calm, sharp, strategic, persuasiv
 End every conversation with a clear next step.`;
 
 export async function sendChatMessage(messages: Message[], newMessage: string, attachment?: Attachment) {
-  // Build conversation context from history
   const conversationContext = messages
     .map(msg => `${msg.sender === 'user' ? 'User' : 'Assistant'}: ${msg.text}`)
     .join('\n');
-  
+
   const fullPrompt = `${SYSTEM_INSTRUCTION}
 
 Previous conversation:
@@ -186,18 +182,27 @@ ${conversationContext}
 
 User: ${newMessage}
 
-Assistant: Respond naturally and helpfully.`;
+A: Respond naturally and helpfully.`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: fullPrompt
+    const response = await fetch('https://apifreellm.com/api/v1/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({ message: fullPrompt })
     });
 
-    // Extract text from response
-    return response.text || 'Sorry, I could not generate a response.';
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(JSON.stringify(err));
+    }
+
+    const data = await response.json();
+    return data.response || 'Sorry, I could not generate a response.';
   } catch (error: any) {
-    console.error('Gemini API Error:', error);
-    throw new Error(error.message || 'Failed to get response from Gemini');
+    console.error('LLM API Error:', error);
+    throw new Error(error.message || 'Failed to get response from LLM');
   }
 }

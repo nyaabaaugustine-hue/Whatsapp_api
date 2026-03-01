@@ -3,7 +3,7 @@ import { MoreVertical, Phone, Video, X, Share2, Volume2, VolumeX } from 'lucide-
 import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
 import { Message, Attachment } from '../types';
-import { sendChatMessage } from '../services/gemini';
+import { sendChatMessage } from '../services/chatService';
 import { CAR_DATABASE } from '../data/cars';
 import { cn } from '../lib/utils';
 
