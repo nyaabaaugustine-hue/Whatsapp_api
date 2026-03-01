@@ -19,7 +19,7 @@ export default defineConfig(() => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api\/chat/, '/api/v1/chat'),
           headers: {
-            'Authorization': `Bearer ${process.env.VITE_LLM_API_KEY || 'apf_ivcabm4cxcdvaxh8ju1gxxji'}`
+            'Authorization': `Bearer ${process.env.VITE_LLM_API_KEY}`
           }
         }
       }
