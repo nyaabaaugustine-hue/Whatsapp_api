@@ -192,8 +192,8 @@ A: Respond naturally and helpfully.`;
     });
 
     if (!response.ok) {
-      const err = await response.json();
-      throw new Error(JSON.stringify(err));
+      const text = await response.text();
+      throw new Error(`API error ${response.status}: ${text.substring(0, 200)}`);
     }
 
     const data = await response.json();
