@@ -19,7 +19,7 @@ module.exports = async function handler(req, res) {
         'X-Title': 'Abena Car Sales'
       },
       body: JSON.stringify({
-        model: 'mistralai/mistral-7b-instruct',
+        model: 'openrouter/auto',
         messages: [{ role: 'user', content: message }]
       })
     });
