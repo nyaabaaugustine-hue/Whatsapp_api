@@ -2,11 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { Message, Attachment } from "../types";
 import { CAR_DATABASE } from "../data/cars";
 
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyCe_BZGvK2P0xg_fn-OP2IaC1mnCcyuuzM';
-
-// Debug: Log API key status
-console.log('Gemini API Key loaded:', apiKey ? 'Yes' : 'No');
-console.log('API Key value:', apiKey ? `${apiKey.substring(0, 10)}...` : 'undefined');
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
 const ai = new GoogleGenAI({ apiKey });
 
