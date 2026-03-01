@@ -1,0 +1,5 @@
+{
+  "name": "WhatsApp AI",
+  "description": "A WhatsApp-like chat interface powered by Gemini AI.",
+  "requestFramePermissions": ["microphone"]
+}
