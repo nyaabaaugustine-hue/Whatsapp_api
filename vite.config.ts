@@ -15,11 +15,11 @@ export default defineConfig(() => {
       hmr: process.env.DISABLE_HMR !== 'true',
       proxy: {
         '/api': {
-          target: 'https://apifreellm.com',
+          target: 'https://openrouter.ai',
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api\/chat/, '/api/v1/chat'),
+          rewrite: (path) => path.replace(/^\/api\/chat/, '/api/v1/chat/completions'),
           headers: {
-            'Authorization': `Bearer ${process.env.VITE_LLM_API_KEY}`
+            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`
           }
         }
       }

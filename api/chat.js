@@ -8,19 +8,30 @@ module.exports = async function handler(req, res) {
 
   try {
     const { message } = req.body;
-    const apiKey = process.env.VITE_LLM_API_KEY;
+    const apiKey = process.env.OPENROUTER_API_KEY;
 
-    const response = await fetch('https://apifreellm.com/api/v1/chat', {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://salescoms.vercel.app',
+        'X-Title': 'Abena Car Sales'
       },
-      body: JSON.stringify({ message })
+      body: JSON.stringify({
+        model: 'mistralai/mistral-7b-instruct:free',
+        messages: [{ role: 'user', content: message }]
+      })
     });
 
     const data = await response.json();
-    return res.status(200).json(data);
+
+    if (!response.ok) {
+      return res.status(response.status).json({ error: data.error?.message || 'OpenRouter error' });
+    }
+
+    const reply = data.choices?.[0]?.message?.content || 'Sorry, I could not generate a response.';
+    return res.status(200).json({ response: reply });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
