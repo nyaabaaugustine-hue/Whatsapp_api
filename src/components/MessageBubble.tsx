@@ -1,7 +1,8 @@
 import { format } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
-import { Volume2, VolumeX, MessageCircle, MapPin, CalendarCheck } from 'lucide-react';
+import { Volume2, VolumeX, MessageCircle, MapPin, CalendarCheck, Tag } from 'lucide-react';
+import { LocationCard } from './LocationCard';
 import { useState } from 'react';
 import { Message } from '../types';
 import { cn } from '../lib/utils';
@@ -9,6 +10,7 @@ import { QuickReplies } from './QuickReplies';
 import { ActionButtons } from './ActionButtons';
 import { SummaryCard } from './SummaryCard';
 import { CarComparison } from './CarComparison';
+import { CAR_DATABASE } from '../data/cars';
 
 interface MessageBubbleProps {
   message: Message;
@@ -64,16 +66,70 @@ export function MessageBubble({ message, onConfirmBooking, onQuickReply, onActio
           {message.attachment && message.attachment.type === 'audio' && (
             <audio controls src={message.attachment.url} className="max-w-full mb-2" />
           )}
-          {message.aiImages && message.aiImages.map((url, idx) => (
-            <div key={idx} className="relative min-h-[150px] w-full bg-[#111b21] rounded-lg mb-2 overflow-hidden border border-[#2f3b43]">
-              <img 
-                src={url} 
-                alt="Car" 
-                className="w-full h-full object-cover"
-                onLoad={(e) => (e.currentTarget.parentElement!.style.minHeight = '0')}
-              />
-            </div>
-          ))}
+          {message.aiImages && message.aiImages.map((url, idx) => {
+            const car = CAR_DATABASE.find(c => c.image_url === url || c.real_image === url);
+            return (
+              <div key={idx} className="rounded-xl overflow-hidden mb-2 border border-[#2f3b43] bg-[#111b21]">
+                {/* Car Image */}
+                <div className="relative w-full" style={{aspectRatio:'16/9'}}>
+                  <img
+                    src={(car as any)?.real_image || url}
+                    alt={car ? `${car.brand} ${car.model}` : 'Car'}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      // fallback chain: real_image → image_url → placeholder
+                      const t = e.currentTarget;
+                      if (t.src !== url) { t.src = url; }
+                      else { t.src = 'https://via.placeholder.com/400x225/1f2c34/8696a0?text=' + encodeURIComponent(car ? `${car.brand} ${car.model}` : 'Car'); }
+                    }}
+                  />
+                  {car && (
+                    <span className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
+                      {car.year}
+                    </span>
+                  )}
+                  {car && (car as any).color && (
+                    <span className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm text-white text-[11px] px-2 py-0.5 rounded-full">
+                      {(car as any).color}
+                    </span>
+                  )}
+                </div>
+                {car && (
+                  <div className="px-3 py-2.5">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div>
+                        <p className="text-[#e9edef] font-bold text-[14px] leading-tight">{car.brand} {car.model}</p>
+                        <p className="text-[#8696a0] text-[11px] mt-0.5">{car.year} · Available Now</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-[#00a884] font-black text-[15px] leading-tight">₵{car.price.toLocaleString()}</p>
+                        <p className="text-[#8696a0] text-[10px]">or best offer</p>
+                      </div>
+                    </div>
+                    {/* Specs row */}
+                    <div className="flex gap-2 mb-2 flex-wrap">
+                      {(car as any).transmission && (
+                        <span className="text-[10px] bg-[#2a3942] text-[#8696a0] px-2 py-0.5 rounded-full">⚙️ {(car as any).transmission}</span>
+                      )}
+                      {(car as any).fuel && (
+                        <span className="text-[10px] bg-[#2a3942] text-[#8696a0] px-2 py-0.5 rounded-full">⛽ {(car as any).fuel}</span>
+                      )}
+                      {(car as any).mileage && (
+                        <span className="text-[10px] bg-[#2a3942] text-[#8696a0] px-2 py-0.5 rounded-full">📍 {(car as any).mileage}</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => onConfirmBooking && onConfirmBooking(car.id, `${car.brand} ${car.model}`)}
+                      className="w-full bg-[#00a884] hover:bg-[#008f72] active:scale-95 text-white text-[12px] font-bold py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <CalendarCheck className="w-3.5 h-3.5" />
+                      Book a Viewing
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
           {message.text && (
             <div className="text-[14.2px] leading-snug text-[#e9edef] break-words whitespace-pre-wrap relative group">
               {isUser ? (
@@ -91,6 +147,13 @@ export function MessageBubble({ message, onConfirmBooking, onQuickReply, onActio
                     {isSpeaking ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
                   </button>
 
+                  {/* Location Card — WhatsApp style */}
+                  {message.showLocation && (
+                    <div className="mt-2">
+                      <LocationCard />
+                    </div>
+                  )}
+
                   {/* Interactive Buttons */}
                   <div className="mt-3 flex flex-col space-y-2">
                     {hasPhone && (
@@ -101,18 +164,7 @@ export function MessageBubble({ message, onConfirmBooking, onQuickReply, onActio
                         className="flex items-center justify-center space-x-2 bg-[#25D366] hover:bg-[#20bd5a] text-white py-2 px-4 rounded-lg text-sm font-bold transition-colors shadow-sm"
                       >
                         <MessageCircle className="w-4 h-4" />
-                        <span>Chat on WhatsApp</span>
-                      </a>
-                    )}
-                    {hasLocation && (
-                      <a 
-                        href="https://maps.app.goo.gl/vzPQLpLZDYULV8Yp9" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center space-x-2 bg-[#1e3a8a] hover:bg-[#1e40af] text-white py-2 px-4 rounded-lg text-sm font-bold transition-colors shadow-sm"
-                      >
-                        <MapPin className="w-4 h-4" />
-                        <span>View Car Park Location</span>
+                        <span>Chat with Owner</span>
                       </a>
                     )}
                     {message.bookingProposal && !isConfirmed && (

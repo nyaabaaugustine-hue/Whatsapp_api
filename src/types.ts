@@ -41,4 +41,5 @@ export interface Message {
     title: string;
     items: { label: string; value: string }[];
   };
+  showLocation?: boolean;
 }

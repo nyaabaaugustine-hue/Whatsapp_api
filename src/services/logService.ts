@@ -35,10 +35,51 @@ export interface TrackingLog {
   messageText: string;
 }
 
+const STORAGE_KEYS = {
+  logs: 'abena_logs',
+  bookings: 'abena_bookings',
+  sessions: 'abena_sessions',
+};
+
+function loadFromStorage<T>(key: string): T[] {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    // Rehydrate Date objects
+    return parsed.map((item: any) => {
+      const rehydrated: any = { ...item };
+      ['timestamp', 'startTime', 'lastActivity'].forEach(field => {
+        if (rehydrated[field]) rehydrated[field] = new Date(rehydrated[field]);
+      });
+      if (rehydrated.messages) {
+        rehydrated.messages = rehydrated.messages.map((m: any) => ({
+          ...m,
+          timestamp: new Date(m.timestamp)
+        }));
+      }
+      return rehydrated;
+    });
+  } catch {
+    return [];
+  }
+}
+
+function saveToStorage<T>(key: string, data: T[]) {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (e) {
+    console.warn('Storage quota exceeded, trimming logs...');
+    // Trim oldest half if storage is full
+    const trimmed = (data as any[]).slice(Math.floor((data as any[]).length / 2));
+    localStorage.setItem(key, JSON.stringify(trimmed));
+  }
+}
+
 class LogService {
-  private logs: TrackingLog[] = [];
-  private bookings: Booking[] = [];
-  private chatSessions: ChatSession[] = [];
+  private logs: TrackingLog[] = loadFromStorage<TrackingLog>(STORAGE_KEYS.logs);
+  private bookings: Booking[] = loadFromStorage<Booking>(STORAGE_KEYS.bookings);
+  private chatSessions: ChatSession[] = loadFromStorage<ChatSession>(STORAGE_KEYS.sessions);
   private currentSession: ChatSession | null = null;
   private listeners: (() => void)[] = [];
 
@@ -53,37 +94,46 @@ class LogService {
       intent: 'browsing'
     };
     this.chatSessions.unshift(this.currentSession);
+    saveToStorage(STORAGE_KEYS.sessions, this.chatSessions);
     this.notify();
+    // Also persist to server
+    this.persistToServer('session_start', { sessionId: this.currentSession.id });
   }
 
   addMessageToSession(message: Message) {
-    if (!this.currentSession) {
-      this.startNewSession();
-    }
+    if (!this.currentSession) this.startNewSession();
     this.currentSession!.messages.push(message);
     this.currentSession!.lastActivity = new Date();
+    // Update session in storage
+    const idx = this.chatSessions.findIndex(s => s.id === this.currentSession!.id);
+    if (idx !== -1) this.chatSessions[idx] = this.currentSession!;
+    saveToStorage(STORAGE_KEYS.sessions, this.chatSessions);
+    // Persist message to server
+    this.persistToServer('message', {
+      sessionId: this.currentSession!.id,
+      sender: message.sender,
+      text: message.text,
+      timestamp: message.timestamp
+    });
     this.notify();
   }
 
   updateUserInfo(userInfo: Partial<UserInfo>) {
-    if (!this.currentSession) {
-      this.startNewSession();
-    }
-    this.currentSession!.userInfo = {
-      ...this.currentSession!.userInfo,
-      ...userInfo
-    };
+    if (!this.currentSession) this.startNewSession();
+    this.currentSession!.userInfo = { ...this.currentSession!.userInfo, ...userInfo };
+    const idx = this.chatSessions.findIndex(s => s.id === this.currentSession!.id);
+    if (idx !== -1) this.chatSessions[idx] = this.currentSession!;
+    saveToStorage(STORAGE_KEYS.sessions, this.chatSessions);
     this.notify();
   }
 
   updateSessionMetadata(leadTemperature?: string, intent?: string) {
     if (this.currentSession) {
-      if (leadTemperature) {
-        this.currentSession.leadTemperature = leadTemperature as 'cold' | 'warm' | 'hot';
-      }
-      if (intent) {
-        this.currentSession.intent = intent;
-      }
+      if (leadTemperature) this.currentSession.leadTemperature = leadTemperature as 'cold' | 'warm' | 'hot';
+      if (intent) this.currentSession.intent = intent;
+      const idx = this.chatSessions.findIndex(s => s.id === this.currentSession!.id);
+      if (idx !== -1) this.chatSessions[idx] = this.currentSession!;
+      saveToStorage(STORAGE_KEYS.sessions, this.chatSessions);
       this.notify();
     }
   }
@@ -95,10 +145,9 @@ class LogService {
       timestamp: new Date(),
     };
     this.logs.unshift(newLog);
-    
-    // Update session metadata
+    saveToStorage(STORAGE_KEYS.logs, this.logs);
     this.updateSessionMetadata(log.lead_temperature, log.intent);
-    
+    this.persistToServer('tracking_log', newLog);
     this.notify();
   }
 
@@ -111,37 +160,44 @@ class LogService {
       customer_phone: this.currentSession?.userInfo.phone,
     };
     this.bookings.unshift(newBooking);
-    
-    // Also add to logs for visibility
+    saveToStorage(STORAGE_KEYS.bookings, this.bookings);
     this.addLog({
       intent: 'booking_confirmed',
       lead_temperature: 'hot',
       recommended_car_id: booking.car_id,
       messageText: `Booking confirmed for car ${booking.car_id}`
     });
-    
+    this.persistToServer('booking', newBooking);
     this.notify();
     return newBooking;
   }
 
-  getLogs() {
-    return this.logs;
-  }
+  getLogs() { return this.logs; }
+  getBookings() { return this.bookings; }
+  getChatSessions() { return this.chatSessions; }
+  getCurrentSession() { return this.currentSession; }
 
-  getBookings() {
-    return this.bookings;
-  }
+  clearCurrentSession() { this.currentSession = null; }
 
-  getChatSessions() {
-    return this.chatSessions;
-  }
-
-  getCurrentSession() {
-    return this.currentSession;
-  }
-
-  clearCurrentSession() {
+  clearAllData() {
+    this.logs = [];
+    this.bookings = [];
+    this.chatSessions = [];
     this.currentSession = null;
+    Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
+    this.notify();
+  }
+
+  private async persistToServer(eventType: string, data: any) {
+    try {
+      await fetch('/api/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventType, data, timestamp: new Date().toISOString() })
+      });
+    } catch {
+      // Silent fail — localStorage is the source of truth
+    }
   }
 
   exportToJSON() {
@@ -154,48 +210,31 @@ class LogService {
   }
 
   exportToCSV() {
-    // Export chat sessions as CSV
-    const headers = ['Session ID', 'Start Time', 'Customer Name', 'Phone', 'Email', 'Lead Temp', 'Intent', 'Messages Count', 'Last Activity'];
-    const rows = this.chatSessions.map(session => [
-      session.id,
-      session.startTime.toLocaleString(),
-      session.userInfo.name || 'N/A',
-      session.userInfo.phone || 'N/A',
-      session.userInfo.email || 'N/A',
-      session.leadTemperature,
-      session.intent,
-      session.messages.length.toString(),
-      session.lastActivity.toLocaleString()
+    const headers = ['Session ID', 'Start Time', 'Customer Name', 'Phone', 'Email', 'Lead Temp', 'Intent', 'Messages', 'Last Activity'];
+    const rows = this.chatSessions.map(s => [
+      s.id, s.startTime.toLocaleString(), s.userInfo.name || 'N/A',
+      s.userInfo.phone || 'N/A', s.userInfo.email || 'N/A',
+      s.leadTemperature, s.intent, s.messages.length.toString(),
+      s.lastActivity.toLocaleString()
     ]);
-
-    return [headers, ...rows].map(row => row.join(',')).join('\n');
+    return [headers, ...rows].map(r => r.join(',')).join('\n');
   }
 
   exportBookingsToCSV() {
     const headers = ['Booking ID', 'Timestamp', 'Customer Name', 'Phone', 'Email', 'Car ID', 'Status'];
-    const rows = this.bookings.map(booking => [
-      booking.id,
-      booking.timestamp.toLocaleString(),
-      booking.customer_name || 'N/A',
-      booking.customer_phone || 'N/A',
-      booking.customer_email || 'N/A',
-      booking.car_id,
-      booking.status
+    const rows = this.bookings.map(b => [
+      b.id, b.timestamp.toLocaleString(), b.customer_name || 'N/A',
+      b.customer_phone || 'N/A', b.customer_email || 'N/A', b.car_id, b.status
     ]);
-
-    return [headers, ...rows].map(row => row.join(',')).join('\n');
+    return [headers, ...rows].map(r => r.join(',')).join('\n');
   }
 
   subscribe(listener: () => void) {
     this.listeners.push(listener);
-    return () => {
-      this.listeners = this.listeners.filter(l => l !== listener);
-    };
+    return () => { this.listeners = this.listeners.filter(l => l !== listener); };
   }
 
-  private notify() {
-    this.listeners.forEach(l => l());
-  }
+  private notify() { this.listeners.forEach(l => l()); }
 }
 
 export const logService = new LogService();

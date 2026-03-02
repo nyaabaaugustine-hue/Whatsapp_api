@@ -1,7 +1,7 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import { defineConfig } from 'vite';
 
 export default defineConfig(() => {
   return {
@@ -12,15 +12,12 @@ export default defineConfig(() => {
       },
     },
     server: {
-      hmr: process.env.DISABLE_HMR !== 'true',
+      port: 3000,
+      hmr: true,
       proxy: {
         '/api': {
-          target: 'https://openrouter.ai',
+          target: 'http://localhost:3001',
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api\/chat/, '/api/v1/chat/completions'),
-          headers: {
-            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`
-          }
         }
       }
     },
