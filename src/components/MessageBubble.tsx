@@ -1,198 +1,283 @@
 import { format } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
-import { Volume2, VolumeX, MessageCircle, MapPin, CalendarCheck, Tag } from 'lucide-react';
+import { Volume2, VolumeX, MessageCircle, CalendarCheck, Share2, TrendingUp, Copy, Check, Smartphone, Zap } from 'lucide-react';
 import { LocationCard } from './LocationCard';
+import { CarComparison } from './CarComparison';
+import { DepositCard } from './DepositCard';
 import { useState } from 'react';
 import { Message } from '../types';
 import { cn } from '../lib/utils';
-import { QuickReplies } from './QuickReplies';
-import { ActionButtons } from './ActionButtons';
-import { SummaryCard } from './SummaryCard';
-import { CarComparison } from './CarComparison';
 import { CAR_DATABASE } from '../data/cars';
 
 interface MessageBubbleProps {
   message: Message;
   onConfirmBooking?: (carId: string, carName: string) => void;
-  onQuickReply?: (value: string, text: string) => void;
-  onAction?: (action: string, data?: any) => void;
 }
 
-export function MessageBubble({ message, onConfirmBooking, onQuickReply, onAction }: MessageBubbleProps) {
+// ── Share car via WhatsApp ────────────────────────────────────────────
+function shareCarViaWhatsApp(car: any) {
+  const text = encodeURIComponent(
+    `🚗 Check out this car at Drivemond!\n\n` +
+    `*${car.year} ${car.brand} ${car.model}*\n` +
+    `💰 Price: ₵${car.price.toLocaleString()}\n` +
+    `⚙️ ${(car as any).transmission || 'Auto'} · ⛽ ${(car as any).fuel || 'Petrol'} · 📍 ${(car as any).mileage || 'N/A'}\n\n` +
+    `Interested? Chat with Drivemond: https://wa.me/233504512884`
+  );
+  window.open(`https://wa.me/?text=${text}`, '_blank');
+}
+
+// ── Beautiful Car Card ────────────────────────────────────────────────
+function CarCard({ url, onBook }: { url: string; onBook?: (id: string, name: string) => void }) {
+  const car = CAR_DATABASE.find(c => (c as any).real_image === url || c.image_url === url);
+  const [shared, setShared] = useState(false);
+  const [imgErr, setImgErr] = useState(false);
+
+  const handleShare = () => {
+    if (!car) return;
+    shareCarViaWhatsApp(car);
+    setShared(true);
+    setTimeout(() => setShared(false), 2000);
+  };
+
+  return (
+    <div className="rounded-2xl overflow-hidden mb-2.5 border border-[#2f3b43]/80 bg-[#111b21] shadow-lg">
+      {/* Image */}
+      <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
+        <img
+          src={imgErr ? `https://placehold.co/400x225/1f2c34/8696a0?text=${encodeURIComponent(car ? `${car.brand} ${car.model}` : 'Car')}` : ((car as any)?.real_image || url)}
+          alt={car ? `${car.brand} ${car.model}` : 'Car'}
+          className="w-full h-full object-cover"
+          onError={() => setImgErr(true)}
+        />
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+
+        {/* Top badges */}
+        {car && (
+          <>
+            <span className="absolute top-2 left-2 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10">
+              {car.year}
+            </span>
+            {(car as any).color && (
+              <span className="absolute top-2 right-2 bg-black/70 backdrop-blur-md text-white text-[10px] px-2 py-0.5 rounded-full border border-white/10">
+                🎨 {(car as any).color}
+              </span>
+            )}
+          </>
+        )}
+
+        {/* Bottom price overlay */}
+        {car && (
+          <div className="absolute bottom-0 left-0 right-0 px-3 py-2 flex items-end justify-between">
+            <div>
+              <p className="text-white font-black text-[15px] leading-tight drop-shadow-lg">{car.brand} {car.model}</p>
+              <p className="text-white/70 text-[10px]">{car.year} · Available Now</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[#4ade80] font-black text-[16px] leading-tight drop-shadow-lg">₵{car.price.toLocaleString()}</p>
+              <p className="text-white/60 text-[9px]">or best offer</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {car && (
+        <div className="px-3 pt-2.5 pb-3">
+          {/* Specs pills */}
+          <div className="flex gap-1.5 mb-3 flex-wrap">
+            {(car as any).transmission && (
+              <span className="text-[10px] bg-[#2a3942] text-[#aebac1] px-2 py-1 rounded-full border border-[#3d4f5c]/50">
+                ⚙️ {(car as any).transmission}
+              </span>
+            )}
+            {(car as any).fuel && (
+              <span className="text-[10px] bg-[#2a3942] text-[#aebac1] px-2 py-1 rounded-full border border-[#3d4f5c]/50">
+                ⛽ {(car as any).fuel}
+              </span>
+            )}
+            {(car as any).mileage && (
+              <span className="text-[10px] bg-[#2a3942] text-[#aebac1] px-2 py-1 rounded-full border border-[#3d4f5c]/50">
+                📍 {(car as any).mileage}
+              </span>
+            )}
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => onBook?.(car.id, `${car.brand} ${car.model}`)}
+              className="flex-1 bg-[#00a884] hover:bg-[#008f72] active:scale-[0.97] text-white text-[12px] font-bold py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-md shadow-[#00a884]/20"
+            >
+              <CalendarCheck className="w-3.5 h-3.5" />
+              Book Viewing
+            </button>
+            <button
+              onClick={handleShare}
+              className={cn(
+                'w-9 h-9 flex-shrink-0 rounded-xl flex items-center justify-center transition-all active:scale-95 border',
+                shared
+                  ? 'bg-[#00a884]/20 border-[#00a884]/40 text-[#00a884]'
+                  : 'bg-[#2a3942] border-[#3d4f5c]/50 text-[#8696a0] hover:text-white hover:bg-[#3d4f5c]'
+              )}
+              title="Share this car"
+            >
+              {shared ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Audio message player ──────────────────────────────────────────────
+function AudioMessage({ url }: { url: string }) {
+  return (
+    <div className="flex items-center gap-3 bg-[#2a3942] rounded-xl px-3 py-2.5 mb-2 min-w-[200px]">
+      <div className="w-8 h-8 bg-[#00a884] rounded-full flex items-center justify-center flex-shrink-0">
+        <Volume2 className="w-4 h-4 text-white" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <audio controls src={url} className="w-full h-8" style={{ filter: 'invert(0.8)' }} />
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────
+export function MessageBubble({ message, onConfirmBooking }: MessageBubbleProps) {
   const isUser = message.sender === 'user';
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
 
-  const handleConfirm = () => {
-    if (message.bookingProposal && onConfirmBooking) {
-      onConfirmBooking(message.bookingProposal.carId, message.bookingProposal.carName);
-      setIsConfirmed(true);
-    }
-  };
-
   const speak = () => {
-    if ('speechSynthesis' in window) {
-      if (isSpeaking) {
-        window.speechSynthesis.cancel();
-        setIsSpeaking(false);
-        return;
-      }
-
-      const utterance = new SpeechSynthesisUtterance(message.text);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
-      
-      setIsSpeaking(true);
-      window.speechSynthesis.speak(utterance);
-    }
+    if (!('speechSynthesis' in window)) return;
+    if (isSpeaking) { window.speechSynthesis.cancel(); setIsSpeaking(false); return; }
+    const u = new SpeechSynthesisUtterance(message.text);
+    u.onend = () => setIsSpeaking(false);
+    u.onerror = () => setIsSpeaking(false);
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(u);
   };
 
   const hasPhone = message.text.includes('+233504512884') || message.text.toLowerCase().includes('sales manager');
-  const hasLocation = message.text.toLowerCase().includes('car park location') || message.text.toLowerCase().includes('where are you located') || message.text.includes('maps.app.goo.gl');
+  const isProactive = message.isProactive;
 
   return (
-    <div className={cn("flex w-full mb-2", isUser ? "justify-end" : "justify-start")}>
-      <div
-        className={cn(
-          "max-w-[85%] rounded-[8px] px-[9px] py-[6px] relative shadow-[0_1px_0.5px_rgba(0,0,0,0.13)]",
-          isUser ? "bg-[#005c4b] rounded-tr-none" : "bg-[#202c33] rounded-tl-none"
-        )}
-      >
-        <div className="flex flex-col">
-          {message.attachment && message.attachment.type === 'image' && (
-            <img src={message.attachment.url} alt="Attachment" className="max-w-full rounded-lg mb-2" />
+    <div className={cn('flex w-full mb-1.5', isUser ? 'justify-end' : 'justify-start')}>
+      {/* Proactive message — special pill style */}
+      {isProactive && !isUser ? (
+        <div className="max-w-[88%] mx-auto">
+          <div className="bg-gradient-to-r from-[#005c4b]/40 to-[#00a884]/20 border border-[#00a884]/30 rounded-2xl px-4 py-3 shadow-lg backdrop-blur-sm">
+            <div className="flex items-center gap-2 mb-1">
+              <Zap className="w-3 h-3 text-[#00a884]" />
+              <span className="text-[#00a884] text-[10px] font-bold uppercase tracking-wide">Abena</span>
+            </div>
+            <p className="text-[#e9edef] text-[13px] leading-relaxed">{message.text}</p>
+            <span className="text-[10px] text-[#8696a0] mt-1 block text-right">{format(message.timestamp, 'HH:mm')}</span>
+          </div>
+        </div>
+      ) : (
+        <div className={cn(
+          'max-w-[88%] rounded-[10px] px-[9px] py-[6px] relative shadow-[0_1px_2px_rgba(0,0,0,0.25)]',
+          isUser ? 'bg-[#005c4b] rounded-tr-none' : 'bg-[#202c33] rounded-tl-none'
+        )}>
+
+          {/* Audio attachment */}
+          {message.attachment?.type === 'audio' && <AudioMessage url={message.attachment.url} />}
+
+          {/* Image attachment */}
+          {message.attachment?.type === 'image' && (
+            <img src={message.attachment.url} alt="Attachment" className="max-w-full rounded-xl mb-2" />
           )}
-          {message.attachment && message.attachment.type === 'audio' && (
-            <audio controls src={message.attachment.url} className="max-w-full mb-2" />
+
+          {/* Car image cards */}
+          {message.aiImages?.map((url, idx) => (
+            <CarCard key={idx} url={url} onBook={onConfirmBooking} />
+          ))}
+
+          {/* Car comparison card */}
+          {message.compareCard && (
+            <CarComparison
+              carId1={message.compareCard.carId1}
+              carId2={message.compareCard.carId2}
+              onBook={onConfirmBooking}
+            />
           )}
-          {message.aiImages && message.aiImages.map((url, idx) => {
-            const car = CAR_DATABASE.find(c => c.image_url === url || c.real_image === url);
-            return (
-              <div key={idx} className="rounded-xl overflow-hidden mb-2 border border-[#2f3b43] bg-[#111b21]">
-                {/* Car Image */}
-                <div className="relative w-full" style={{aspectRatio:'16/9'}}>
-                  <img
-                    src={(car as any)?.real_image || url}
-                    alt={car ? `${car.brand} ${car.model}` : 'Car'}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      // fallback chain: real_image → image_url → placeholder
-                      const t = e.currentTarget;
-                      if (t.src !== url) { t.src = url; }
-                      else { t.src = 'https://via.placeholder.com/400x225/1f2c34/8696a0?text=' + encodeURIComponent(car ? `${car.brand} ${car.model}` : 'Car'); }
-                    }}
-                  />
-                  {car && (
-                    <span className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
-                      {car.year}
-                    </span>
-                  )}
-                  {car && (car as any).color && (
-                    <span className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm text-white text-[11px] px-2 py-0.5 rounded-full">
-                      {(car as any).color}
-                    </span>
-                  )}
-                </div>
-                {car && (
-                  <div className="px-3 py-2.5">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div>
-                        <p className="text-[#e9edef] font-bold text-[14px] leading-tight">{car.brand} {car.model}</p>
-                        <p className="text-[#8696a0] text-[11px] mt-0.5">{car.year} · Available Now</p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-[#00a884] font-black text-[15px] leading-tight">₵{car.price.toLocaleString()}</p>
-                        <p className="text-[#8696a0] text-[10px]">or best offer</p>
-                      </div>
-                    </div>
-                    {/* Specs row */}
-                    <div className="flex gap-2 mb-2 flex-wrap">
-                      {(car as any).transmission && (
-                        <span className="text-[10px] bg-[#2a3942] text-[#8696a0] px-2 py-0.5 rounded-full">⚙️ {(car as any).transmission}</span>
-                      )}
-                      {(car as any).fuel && (
-                        <span className="text-[10px] bg-[#2a3942] text-[#8696a0] px-2 py-0.5 rounded-full">⛽ {(car as any).fuel}</span>
-                      )}
-                      {(car as any).mileage && (
-                        <span className="text-[10px] bg-[#2a3942] text-[#8696a0] px-2 py-0.5 rounded-full">📍 {(car as any).mileage}</span>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => onConfirmBooking && onConfirmBooking(car.id, `${car.brand} ${car.model}`)}
-                      className="w-full bg-[#00a884] hover:bg-[#008f72] active:scale-95 text-white text-[12px] font-bold py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5"
-                    >
-                      <CalendarCheck className="w-3.5 h-3.5" />
-                      Book a Viewing
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+
+          {/* Deposit card */}
+          {message.depositCard && (
+            <DepositCard
+              carName={message.depositCard.carName}
+              depositAmount={message.depositCard.depositAmount}
+            />
+          )}
+
+          {/* Text content */}
           {message.text && (
-            <div className="text-[14.2px] leading-snug text-[#e9edef] break-words whitespace-pre-wrap relative group">
+            <div className={cn('text-[14px] leading-snug break-words', isUser ? 'text-[#e9edef]' : 'text-[#e9edef]')}>
               {isUser ? (
-                message.text
+                <span className="whitespace-pre-wrap">{message.text}</span>
               ) : (
-                <>
-                  <div className="markdown-body prose prose-invert prose-sm max-w-none prose-p:my-0 prose-a:text-[#53bdeb]">
+                <div className="relative group">
+                  <div className="markdown-body prose prose-invert prose-sm max-w-none prose-p:my-0.5 prose-a:text-[#53bdeb] prose-strong:text-white">
                     <ReactMarkdown remarkPlugins={[remarkBreaks]}>{message.text}</ReactMarkdown>
                   </div>
-                  <button 
+
+                  {/* Speak button */}
+                  <button
                     onClick={speak}
-                    className="absolute -right-1 -top-1 p-1 text-[#8696a0] hover:text-[#d1d7db] opacity-0 group-hover:opacity-100 transition-opacity"
-                    title={isSpeaking ? "Stop speaking" : "Listen to message"}
+                    className="absolute -right-1 -top-1 p-1 text-[#8696a0] hover:text-[#e9edef] opacity-0 group-hover:opacity-100 transition-opacity rounded-full hover:bg-white/10"
                   >
                     {isSpeaking ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
                   </button>
 
-                  {/* Location Card — WhatsApp style */}
+                  {/* Location card */}
                   {message.showLocation && (
-                    <div className="mt-2">
-                      <LocationCard />
-                    </div>
+                    <div className="mt-2"><LocationCard /></div>
                   )}
 
-                  {/* Interactive Buttons */}
-                  <div className="mt-3 flex flex-col space-y-2">
-                    {hasPhone && (
-                      <a 
-                        href="https://wa.me/233504512884" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center space-x-2 bg-[#25D366] hover:bg-[#20bd5a] text-white py-2 px-4 rounded-lg text-sm font-bold transition-colors shadow-sm"
-                      >
-                        <MessageCircle className="w-4 h-4" />
-                        <span>Chat with Owner</span>
-                      </a>
-                    )}
-                    {message.bookingProposal && !isConfirmed && (
-                      <button 
-                        onClick={handleConfirm}
-                        className="flex items-center justify-center space-x-2 bg-[#111827] hover:bg-black text-white py-2 px-4 rounded-lg text-sm font-bold transition-colors shadow-sm border border-white/10"
-                      >
-                        <CalendarCheck className="w-4 h-4" />
-                        <span>Confirm Booking for {message.bookingProposal.carName}</span>
-                      </button>
-                    )}
-                  </div>
-                </>
+                  {/* Phone / booking CTA buttons */}
+                  {(hasPhone || (message.bookingProposal && !isConfirmed)) && (
+                    <div className="mt-3 flex flex-col gap-2">
+                      {hasPhone && (
+                        <a
+                          href="https://wa.me/233504512884"
+                          target="_blank" rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] active:scale-[0.97] text-white py-2.5 px-4 rounded-xl text-[12px] font-bold transition-all shadow-md shadow-[#25D366]/20"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          Chat with Owner on WhatsApp
+                        </a>
+                      )}
+                      {message.bookingProposal && !isConfirmed && (
+                        <button
+                          onClick={() => { onConfirmBooking?.(message.bookingProposal!.carId, message.bookingProposal!.carName); setIsConfirmed(true); }}
+                          className="flex items-center justify-center gap-2 bg-[#00a884] hover:bg-[#008f72] active:scale-[0.97] text-white py-2.5 px-4 rounded-xl text-[12px] font-bold transition-all shadow-md"
+                        >
+                          <CalendarCheck className="w-4 h-4" />
+                          Confirm Booking · {message.bookingProposal.carName}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )}
+
+          {/* Timestamp */}
+          <div className="flex items-center justify-end mt-1 gap-1">
+            <span className="text-[10px] text-[#8696a0] whitespace-nowrap">{format(message.timestamp, 'HH:mm')}</span>
+            {isUser && (
+              <svg viewBox="0 0 16 15" width="14" height="14" className="text-[#53bdeb] fill-current flex-shrink-0">
+                <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.048a.366.366 0 0 0-.064-.512zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.048a.365.365 0 0 0-.063-.51z"/>
+              </svg>
+            )}
+          </div>
         </div>
-        <div className="flex items-center justify-end mt-1 space-x-1">
-          <span className="text-[11px] text-[#8696a0] whitespace-nowrap">
-            {format(message.timestamp, 'HH:mm')}
-          </span>
-          {isUser && (
-            <svg viewBox="0 0 16 15" width="16" height="15" className="text-[#53bdeb] fill-current">
-              <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.048a.366.366 0 0 0-.064-.512zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.048a.365.365 0 0 0-.063-.51z" />
-            </svg>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
