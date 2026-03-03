@@ -173,7 +173,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     await fetch('/api/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: 'josemorgan120@gmal.com', subject: `Chat Transcript - ${leadInfo?.name || 'Customer'}`, html })
+      body: JSON.stringify({ to: 'josemorgan120@gmail.com', subject: `Chat Transcript - ${leadInfo?.name || 'Customer'}`, html })
     });
     alert('Transcript sent');
   };

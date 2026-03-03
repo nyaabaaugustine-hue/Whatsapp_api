@@ -7,7 +7,7 @@ module.exports = async function handler(req, res) {
 
   try {
     const { to, subject, html } = req.body || {};
-    const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'josemorgan120@gmal.com';
+    const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'josemorgan120@gmail.com';
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
     if (!RESEND_API_KEY) {
