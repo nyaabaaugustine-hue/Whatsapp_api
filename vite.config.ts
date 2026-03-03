@@ -1,12 +1,14 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import { defineConfig } from 'vite';
-import dotenv from 'dotenv';
+import { defineConfig, loadEnv } from 'vite';
 
-dotenv.config();
-
-export default defineConfig(() => {
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  const FREE_LLM = env.VITE_APIFREELLM_API_KEY;
+  const OPENROUTER = env.VITE_OPENROUTER_API_KEY;
+  const RESEND = env.VITE_RESEND_API_KEY;
+  const ADMIN_EMAIL = env.VITE_ADMIN_EMAIL || 'josemorgan120@gmail.com';
   return {
     plugins: [
       react(),
@@ -35,7 +37,7 @@ export default defineConfig(() => {
                 });
                 const bodyText = Buffer.concat(chunks).toString('utf-8') || '{}';
                 const body = JSON.parse(bodyText);
-                const RESEND_API_KEY = process.env.RESEND_API_KEY;
+                const RESEND_API_KEY = RESEND;
                 if (!RESEND_API_KEY) {
                   res.statusCode = 500;
                   return res.end(JSON.stringify({ error: 'Email provider not configured' }));
@@ -48,7 +50,7 @@ export default defineConfig(() => {
                   },
                   body: JSON.stringify({
                     from: 'onboarding@resend.dev',
-                    to: body?.to || process.env.ADMIN_EMAIL || 'josemorgan120@gmail.com',
+                    to: body?.to || ADMIN_EMAIL,
                     subject: body?.subject || 'Chat Transcript',
                     html: body?.html || '<p>No content</p>',
                   }),
@@ -80,8 +82,8 @@ export default defineConfig(() => {
                 const bodyText = Buffer.concat(chunks).toString('utf-8') || '{}';
                 const body = JSON.parse(bodyText);
                 const message: string = body?.message ?? '';
-                const freeKey = process.env.APIFREELLM_API_KEY;
-                const orKey = process.env.OPENROUTER_API_KEY;
+                const freeKey = FREE_LLM;
+                const orKey = OPENROUTER;
                 let response: Response | null = null;
                 if (freeKey) {
                   response = await fetch('https://apifreellm.com/api/v1/chat', {
