@@ -54,17 +54,24 @@ module.exports = async function handler(req, res) {
     created_at: r.timestamp || new Date().toISOString(),
   }));
 
+  // Lazy memoization for conversations within this request
+  let convosCache = null;
+  const getConvos = () => {
+    if (!convosCache) convosCache = buildConversations(raw);
+    return convosCache;
+  };
+
   if (type.includes('events')) {
     return res.status(200).json(events);
   }
 
   if (type.includes('conversations')) {
-    const convos = buildConversations(raw);
+    const convos = getConvos();
     return res.status(200).json(convos);
   }
 
   if (type.includes('stats')) {
-    const conversations = buildConversations(raw);
+    const conversations = getConvos();
     const hotLeads = events.filter(e => e.lead_temperature === 'hot').length;
     const warmLeads = events.filter(e => e.lead_temperature === 'warm').length;
     const coldLeads = events.filter(e => e.lead_temperature === 'cold').length;
