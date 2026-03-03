@@ -82,6 +82,9 @@ class LogService {
   private chatSessions: ChatSession[] = loadFromStorage<ChatSession>(STORAGE_KEYS.sessions);
   private currentSession: ChatSession | null = null;
   private listeners: (() => void)[] = [];
+  private pendingQueue: any[] = (() => {
+    try { return JSON.parse(localStorage.getItem('abena_log_queue') || '[]'); } catch { return []; }
+  })();
 
   startNewSession() {
     this.currentSession = {
@@ -200,9 +203,43 @@ class LogService {
           timestamp: new Date().toISOString()
         })
       });
+      // Flush queue if any after a successful send
+      if (this.pendingQueue.length > 0) this.flushQueue();
     } catch {
-      // Silent fail — localStorage is the source of truth
+      // Queue and flush later
+      this.pendingQueue.push({
+        eventType,
+        sessionId: this.currentSession?.id || null,
+        data,
+        timestamp: new Date().toISOString()
+      });
+      try { localStorage.setItem('abena_log_queue', JSON.stringify(this.pendingQueue)); } catch {}
     }
+  }
+
+  private async flushQueue() {
+    if (!navigator.onLine || this.pendingQueue.length === 0) return;
+    const items = [...this.pendingQueue];
+    this.pendingQueue = [];
+    try { localStorage.setItem('abena_log_queue', JSON.stringify(this.pendingQueue)); } catch {}
+    for (const it of items) {
+      try {
+        await fetch('/api/log', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(it)
+        });
+      } catch {
+        this.pendingQueue.push(it);
+      }
+    }
+    try { localStorage.setItem('abena_log_queue', JSON.stringify(this.pendingQueue)); } catch {}
+  }
+
+  constructor() {
+    window.addEventListener('online', () => this.flushQueue());
+    // periodic flush
+    setInterval(() => this.flushQueue(), 15000);
   }
 
   exportToJSON() {

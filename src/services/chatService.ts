@@ -160,7 +160,7 @@ Abena (reply like a real human typing on WhatsApp, keep it short and natural):`;
         if (response.ok) {
           const data = await response.json();
           const reply = data.response || '';
-          if (reply) return reply;
+          if (reply) return `${reply}\n\`\`\`json\n{"provider_used":"apifreellm"}\n\`\`\``;
         }
       } catch {}
     }
@@ -179,7 +179,7 @@ Abena (reply like a real human typing on WhatsApp, keep it short and natural):`;
         if (response.ok) {
           const data = await response.json();
           const reply = data.choices?.[0]?.message?.content || '';
-          if (reply) return reply;
+          if (reply) return `${reply}\n\`\`\`json\n{"provider_used":"openrouter_client"}\n\`\`\``;
         }
       } catch {}
     }
@@ -192,12 +192,12 @@ Abena (reply like a real human typing on WhatsApp, keep it short and natural):`;
       if (response.ok) {
         const data = await response.json();
         const reply = data.response || '';
-        if (reply) return reply;
+        if (reply) return `${reply}\n\`\`\`json\n{"provider_used":"backend"}\n\`\`\``;
       }
     } catch {}
-    return localDemo;
+    return `${localDemo}\n\`\`\`json\n{"provider_used":"local_demo","fallback_used":true}\n\`\`\``;
   } catch (error: any) {
     console.error('LLM API Error:', error);
-    return "Hey! 👋 Abena here from Drivemond.\n\nLocal demo is running without AI right now.\nTell me your budget and car type, and I’ll suggest options.";
+    return `${localDemo}\n\`\`\`json\n{"provider_used":"local_demo","fallback_used":true}\n\`\`\``;
   }
 }

@@ -23,6 +23,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [netOnline, setNetOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [usingBackup, setUsingBackup] = useState<boolean>(false);
   const [isCalling, setIsCalling] = useState(false);
   const [autoRead, setAutoRead] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
@@ -355,6 +356,14 @@ export function ChatArea({ onClose }: ChatAreaProps) {
           const car = CAR_DATABASE.find(c => c.id === String(data.car_id));
           if (car) bookingProposal = { carId: car.id, carName: `${car.brand} ${car.model}` };
         }
+        if (data.provider_used || data.fallback_used) {
+          if (data.fallback_used) setUsingBackup(true);
+          logService.addLog({
+            intent: `provider:${data.provider_used || 'unknown'}`,
+            lead_temperature: 'cold',
+            messageText: originalText
+          });
+        }
         if (data.intent || data.lead_temperature) {
           logService.addLog({
             intent: data.intent || 'unknown',
@@ -600,6 +609,11 @@ export function ChatArea({ onClose }: ChatAreaProps) {
                 <span className={`inline-block w-1.5 h-1.5 rounded-full ${netOnline ? 'bg-[#25D366]' : 'bg-[#8696a0]'}`} />
                 {netOnline ? 'Online' : 'Offline'}
               </span>
+              {usingBackup && (
+                <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-black text-yellow-300 bg-yellow-900/30 border-yellow-700">
+                  Using backup
+                </span>
+              )}
             </h2>
             <p className={cn("text-[11px] mt-0.5 transition-colors truncate", isTyping ? "text-[#00a884] font-medium" : "text-[#8696a0]")}>
               {isTyping ? "typing..." : "Drivemond Sales"}
@@ -688,6 +702,15 @@ export function ChatArea({ onClose }: ChatAreaProps) {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-4 z-10 min-h-0 custom-scroll">
+        {/* Jump to latest */}
+        {!isTyping && (
+          <button
+            onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })}
+            className="fixed right-4 bottom-24 bg-[#2a3942] text-white text-xs px-2 py-1 rounded-lg border border-[#3d4f5c] shadow hover:bg-[#3d4f5c] transition"
+          >
+            Jump to latest
+          </button>
+        )}
         {/* Payment Calculator (inline) */}
         {showCalculator && (
           <PaymentCalculator onClose={() => setShowCalculator(false)} />

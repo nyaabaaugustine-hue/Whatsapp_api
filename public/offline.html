@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Offline · Drivemond</title>
+  <style>
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial; background:#0b141a; color:#e9edef; display:flex; align-items:center; justify-content:center; min-height:100vh; }
+    .card { background:#1f2c34; border:1px solid #2f3b43; padding:24px; border-radius:16px; max-width:360px; text-align:center; }
+    .pill { display:inline-flex; align-items:center; gap:6px; font-weight:800; font-size:12px; padding:4px 8px; border-radius:999px; background:#003d32; color:#25D366; border:1px solid #05846e; }
+    .btn { margin-top:16px; background:#00a884; border:none; color:#fff; font-weight:800; padding:10px 14px; border-radius:12px; cursor:pointer; }
+  </style>
+  <meta name="theme-color" content="#0f172a" />
+</head>
+<body>
+  <div class="card">
+    <div class="pill"><span style="width:6px;height:6px;background:#25D366;border-radius:50%;display:inline-block"></span> Offline Mode</div>
+    <h1 style="margin:12px 0 6px;font-size:20px;">No Internet Connection</h1>
+    <p style="margin:0 0 12px;font-size:14px;color:#aebac1">You’re offline. You can still browse cached pages. Reconnect to chat with Abena.</p>
+    <button class="btn" onclick="location.reload()">Try Again</button>
+  </div>
+</body>
+</html>
