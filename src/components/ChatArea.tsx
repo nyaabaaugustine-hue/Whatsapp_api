@@ -15,7 +15,7 @@ interface ChatAreaProps {
   onClose?: () => void;
 }
 
-const GREETING = "Hello! 👋 This is Abena.\n\nI have some of the cleanest and most reliable vehicles currently available in the Ghanaian market, ranging from fuel-efficient daily drivers to high-end luxury models.\n\nMy goal is to help you find a car that offers both prestige and peace of mind.\n\nTo recommend the perfect match from our inventory, could you share a few details?\n\n1️⃣ **Budget**: What is your estimated price range in Ghana Cedis (₵)?\n\n2️⃣ **Vehicle Type**: Are you looking for a fuel-efficient sedan, rugged SUV, or luxury model?\n\n3️⃣ **Purpose**: Will the car be for personal use, family, or business (like Uber/Bolt)?\n\n4️⃣ **Timeline**: How soon are you planning to get behind the wheel?\n\nReply with your answers, and I'll pull up the best options for you right away! 🚗💨";
+const GREETING = "Hello! 👋 Am Abena.\n\nLooking for a car? Tell me:\n• Budget (₵)\n• Type (SUV/Sedan/Luxury)\n• When you need it\n\nI’ll show the best options fast 🚗";
 
 export function ChatArea({ onClose }: ChatAreaProps) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -25,6 +25,11 @@ export function ChatArea({ onClose }: ChatAreaProps) {
   const [isCalling, setIsCalling] = useState(false);
   const [autoRead, setAutoRead] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [presetText, setPresetText] = useState<string>('');
+  const [chatBgUrl, setChatBgUrl] = useState<string | null>(() => {
+    try { return localStorage.getItem('chat_bg_url') || 'https://res.cloudinary.com/dx1nrew3h/image/upload/v1772512677/aaaaa_w3eapq.jpg'; } catch { return 'https://res.cloudinary.com/dx1nrew3h/image/upload/v1772512677/aaaaa_w3eapq.jpg'; }
+  });
 
   // Lead capture — show modal on first open
   const [leadInfo, setLeadInfo] = useState<{ name: string; phone: string } | null>(null);
@@ -37,6 +42,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
   const [showHandoff, setShowHandoff] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [flow, setFlow] = useState<{ stage: 'idle' | 'budget' | 'type' | 'timeline' | 'results'; budget?: string; carType?: string; timeline?: string }>({ stage: 'idle' });
 
   // Type out greeting word-by-word on mount (after lead modal dismissed)
   useEffect(() => {
@@ -55,14 +61,10 @@ export function ChatArea({ onClose }: ChatAreaProps) {
         current += (i === 0 ? '' : ' ') + words[i];
         setMessages([{ id: msgId, text: current, sender: 'ai', timestamp: new Date() }]);
         const w = words[i];
-        // Base: ~60-100ms per word (comfortable reading pace)
-        let delay = 70 + Math.random() * 60 + w.length * 8;
-        // Long pause at sentence endings
-        if (w.endsWith('.') || w.endsWith('?') || w.endsWith('!')) delay += 900 + Math.random() * 500;
-        // Medium pause at list items (emoji lines) and colons
-        else if (w.endsWith(',') || w.endsWith(':') || w.includes('️⃣')) delay += 400 + Math.random() * 200;
-        // Slight pause for longer words
-        else if (w.length > 7) delay += 60 + Math.random() * 40;
+        let delay = 110 + Math.random() * 100 + w.length * 12;
+        if (w.endsWith('.') || w.endsWith('?') || w.endsWith('!')) delay += 1200 + Math.random() * 600;
+        else if (w.endsWith(',') || w.endsWith(':')) delay += 600 + Math.random() * 300;
+        else if (w.length > 7) delay += 100 + Math.random() * 60;
         await new Promise(r => setTimeout(r, delay));
       }
       if (!cancelled) { setIsTyping(false); setGreetingDone(true); }
@@ -72,8 +74,23 @@ export function ChatArea({ onClose }: ChatAreaProps) {
   }, [showLeadModal, greetingDone]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (!greetingDone) return;
+    setMessages(prev => prev.map(m => m.id === 'greeting'
+      ? {
+          ...m,
+          quickReplies: [
+            { id: 'g1', text: 'Find a Car', value: 'find_car' },
+            { id: 'g2', text: 'View Inventory', value: 'view_inventory' },
+            { id: 'g3', text: 'Book Test Drive', value: 'book_viewing' },
+            { id: 'g4', text: 'Car Park Location', value: 'location' },
+            { id: 'g5', text: 'Talk to Sales Rep', value: 'talk_sales' },
+          ],
+        }
+      : m));
+  }, [greetingDone]);
+  useEffect(() => {
+    // Disable auto-scroll to keep background visually stable
+  }, [messages, isTyping]);
 
   const handleLeadSubmit = (name: string, phone: string) => {
     setLeadInfo({ name, phone });
@@ -87,7 +104,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     // Personalise first message
     setMessages(prev => prev.map(m =>
       m.id === 'greeting'
-        ? { ...m, text: m.text.replace('Hello! 👋 This is Abena.', `Hello ${name}! 👋 This is Abena.`) }
+        ? { ...m, text: m.text.replace('Hello! 👋 Am Abena', `Hello ${name}! 👋 Am Abena`) }
         : m
     ));
   };
@@ -130,6 +147,33 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     const text = encodeURIComponent(`Hi, I'm ${name} and I'm interested in buying a car from Drivemond. Can you help me?`);
     window.open(`https://wa.me/233504512884?text=${text}`, '_blank');
   };
+  const normalizePhone = (raw: string | undefined) => {
+    if (!raw) return '';
+    const digits = raw.replace(/[^\d]/g, '');
+    if (digits.startsWith('0')) return `233${digits.substring(1)}`;
+    if (digits.startsWith('233')) return digits;
+    return `233${digits}`;
+  };
+  const finalizeSession = async () => {
+    const phone = normalizePhone(leadInfo?.phone);
+    const transcriptLines = messages.map(m => {
+      const who = m.sender === 'user' ? 'You' : 'Abena';
+      const time = m.timestamp.toLocaleString();
+      return `${who} [${time}]: ${m.text}`;
+    });
+    const shortText = transcriptLines.slice(-20).join('\n').slice(0, 1800);
+    if (phone) {
+      const t = encodeURIComponent(`Chat Transcript:\n\n${shortText}\n\nThank you.`);
+      window.open(`https://wa.me/${phone}?text=${t}`, '_blank');
+    }
+    const html = `<h2>Chat Transcript</h2><p>Name: ${leadInfo?.name || 'Unknown'}</p><p>Phone: ${leadInfo?.phone || 'Unknown'}</p><pre style="white-space:pre-wrap;font-family:Inter,system-ui">${transcriptLines.join('\n')}</pre>`;
+    await fetch('/api/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: 'josemorgan120@gmail.com', subject: `Chat Transcript - ${leadInfo?.name || 'Customer'}`, html })
+    });
+    alert('Transcript sent');
+  };
 
   const clearChat = () => {
     if (window.confirm("Clear this chat?")) {
@@ -153,6 +197,112 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     });
   };
 
+  function categoryOf(brand: string, model: string) {
+    const b = brand.toLowerCase();
+    const m = model.toLowerCase();
+    if (['rav4','cr-v','rx'].some(x => m.includes(x))) return 'SUV';
+    if (m.includes('f-150')) return 'Pickup';
+    if (['mercedes-benz','lexus'].some(x => b.includes(x))) return 'Luxury';
+    return 'Sedan';
+  }
+
+  function parseBudget(input: string): number | undefined {
+    const match = input.match(/₵?\s*([\d.,]+)/i);
+    if (!match) return undefined;
+    const raw = match[1].replace(/[,.\s]/g, '');
+    const val = parseInt(raw, 10);
+    if (isNaN(val)) return undefined;
+    return val;
+  }
+
+  function parseType(input: string): string | undefined {
+    const s = input.toLowerCase();
+    if (s.includes('suv')) return 'SUV';
+    if (s.includes('sedan')) return 'Sedan';
+    if (s.includes('luxury')) return 'Luxury';
+    if (s.includes('pickup')) return 'Pickup';
+    if (s.includes('electric') || s.includes('hybrid')) return 'Electric';
+    return undefined;
+  }
+
+  function parseTimeline(input: string): string | undefined {
+    const s = input.toLowerCase();
+    if (s.includes('week') || s.includes('today')) return 'this week';
+    if (s.includes('month')) return 'within a month';
+    if (s.includes('browse')) return 'just browsing';
+    return undefined;
+  }
+
+  function selectCars(budget?: number, type?: string) {
+    let cars = CAR_DATABASE.slice();
+    if (type && type !== 'Electric') {
+      cars = cars.filter(c => categoryOf(c.brand, c.model) === type);
+    }
+    if (budget) {
+      const allowance = Math.max(budget * 1.15, budget); // allow up to +15% over budget
+      const within = cars.filter(c => c.price <= allowance);
+      if (within.length > 0) {
+        cars = within.sort((a, b) => Math.abs(a.price - budget) - Math.abs(b.price - budget));
+      } else {
+        return [];
+      }
+    }
+    return cars.slice(0, 3);
+  }
+
+  function craftLocalReply(userText: string) {
+    const budget = parseBudget(userText);
+    const type = parseType(userText);
+    const time = parseTimeline(userText);
+    const minPrice = Math.min(...CAR_DATABASE.map(c => c.price));
+    const picks = selectCars(budget, type);
+    const imgs = picks.map(c => ((c as any).real_image || c.image_url));
+    let lines: string[] = [];
+    if (budget) lines.push(`Got it — budget ₵${budget.toLocaleString()}.`);
+    if (type) lines.push(`Noted: ${type}.`);
+    if (time) lines.push(`Timing: ${time}.`);
+    if (!budget && !type) lines.push(`Ok 👌 Tell me your budget and car type.`);
+    // Guard: very low budgets — keep it honest and human
+    if (budget && budget < Math.max(50000, Math.floor(minPrice * 0.5))) {
+      lines.push(`Being real with you — clean units usually start around ₵${minPrice.toLocaleString()}.`);
+      lines.push(`If you can stretch a bit, I’ll find you the best value. What’s your revised budget?`);
+      return { text: lines.join('\n'), aiImages: [] };
+    }
+    if (picks.length > 0) {
+      const top = picks[0];
+      lines.push(`Sharing options now 👇`);
+      lines.push(`${top.brand} ${top.model} · ₵${top.price.toLocaleString()}`);
+    } else {
+      lines.push(`We don’t have anything within that range right now.`);
+      lines.push(`Most of our verified units start around ₵${minPrice.toLocaleString()}.`);
+      lines.push(`Want me to alert you when a budget deal comes in, or should I show close options?`);
+    }
+    return { text: lines.join('\n'), aiImages: imgs };
+  }
+
+  const typeOut = async (text: string, imgs?: string[], opts?: { showLocation?: boolean }) => {
+    setIsTyping(true);
+    const id = (Date.now() + Math.random()).toString();
+    setMessages(prev => [...prev, { id, text: '', sender: 'ai', timestamp: new Date(), aiImages: imgs, showLocation: opts?.showLocation }]);
+    await new Promise(r => setTimeout(r, 700));
+    const words = text.split(' ');
+    let current = '';
+    for (let i = 0; i < words.length; i++) {
+      current += (i === 0 ? '' : ' ') + words[i];
+      setMessages(prev => prev.map(m => m.id === id ? { ...m, text: current } : m));
+      let delay = 130 + Math.random() * 120 + words[i].length * 12;
+      const w = words[i].toLowerCase();
+      if (w.endsWith('.') || w.endsWith('?') || w.endsWith('!')) delay += 1200 + Math.random() * 700;
+      else if (w.endsWith(',') || w.endsWith(';') || w.endsWith(':')) delay += 600 + Math.random() * 300;
+      else if (w.length > 8) delay += 100 + Math.random() * 80;
+      if (w.length < 3 && Math.random() > 0.7) delay = 50;
+      await new Promise(r => setTimeout(r, delay));
+    }
+    setIsTyping(false);
+    const finalMsg: Message = { id, text, sender: 'ai', timestamp: new Date(), aiImages: imgs, showLocation: opts?.showLocation };
+    logService.addMessageToSession(finalMsg);
+  };
+
   const handleSendMessage = async (text: string, attachment?: Attachment) => {
     if (!text.trim() && !attachment) return;
 
@@ -161,13 +311,26 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       text,
       sender: 'user',
       timestamp: new Date(),
-      attachment
+      attachment,
+      replyToId: replyingTo?.id,
+      replyPreview: replyingTo ? replyingTo.text.slice(0, 140) : undefined,
+      readReceipt: 'sent'
     };
+
+    if (attachment?.type === 'image') {
+      const url = attachment.url;
+      if (url) {
+        setChatBgUrl(url);
+        try { localStorage.setItem('chat_bg_url', url); } catch {}
+      }
+    }
 
     const currentMessages = [...messages];
     setMessages(prev => [...prev, userMessage]);
     logService.addMessageToSession(userMessage);
     setIsLoading(true);
+    setReplyingTo(null);
+    setPresetText('');
 
     try {
       let responseText = await sendChatMessage(currentMessages, text, attachment);
@@ -224,6 +387,13 @@ export function ChatArea({ onClose }: ChatAreaProps) {
 
       responseText = findAndStripJSON(responseText);
 
+      const isLocalDemo = responseText.includes('Local demo is running without AI');
+      if (isLocalDemo) {
+        const local = craftLocalReply(text);
+        responseText = local.text;
+        aiImages.splice(0, aiImages.length, ...local.aiImages);
+      }
+
       // CLIENT-SIDE FALLBACK: if user asked for all cars and AI didn't send images, inject all
       const allCarsKeywords = ['show me all', 'all cars', 'all the cars', 'full list', 'show all', 'list all', 'show your cars', 'what cars', 'your inventory', 'all models'];
       const askedForAll = allCarsKeywords.some(k => text.toLowerCase().includes(k));
@@ -256,12 +426,12 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       for (let i = 0; i < words.length; i++) {
         current += (i === 0 ? '' : ' ') + words[i];
         setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: current } : m));
-        let delay = 25 + Math.random() * 50 + words[i].length * 5;
+        let delay = 130 + Math.random() * 120 + words[i].length * 12;
         const w = words[i].toLowerCase();
-        if (w.endsWith('.') || w.endsWith('?') || w.endsWith('!')) delay += 600 + Math.random() * 400;
-        else if (w.endsWith(',') || w.endsWith(';') || w.endsWith(':')) delay += 250 + Math.random() * 200;
-        else if (w.length > 8) delay += 40 + Math.random() * 60;
-        if (w.length < 3 && Math.random() > 0.7) delay = 10;
+        if (w.endsWith('.') || w.endsWith('?') || w.endsWith('!')) delay += 1200 + Math.random() * 700;
+        else if (w.endsWith(',') || w.endsWith(';') || w.endsWith(':')) delay += 600 + Math.random() * 300;
+        else if (w.length > 8) delay += 100 + Math.random() * 80;
+        if (w.length < 3 && Math.random() > 0.7) delay = 50;
         await new Promise(r => setTimeout(r, delay));
       }
 
@@ -272,6 +442,9 @@ export function ChatArea({ onClose }: ChatAreaProps) {
         aiImages: aiImages.length > 0 ? aiImages : undefined, bookingProposal,
         showLocation: isLocationQueryEarly
       };
+
+      // Keep conversation human — no extra quick replies after the first choice
+
       logService.addMessageToSession(finalMsg);
 
       if (autoRead && 'speechSynthesis' in window) {
@@ -284,19 +457,105 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       }
 
     } catch (error) {
-      console.error(error);
-      setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        text: `Sorry, there was an error. ${error instanceof Error ? error.message : 'Please try again.'}`,
-        sender: 'ai', timestamp: new Date()
-      }]);
+      const lower = text.toLowerCase();
+      const wantsInventory = lower.includes('inventory') || lower.includes('show cars') || lower.includes('show') || lower.includes('cars');
+      if (wantsInventory) {
+        const imgs = CAR_DATABASE.map(c => (c as any).real_image || c.image_url);
+        const aiMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          text: "Network is acting up.\nSharing our current lineup now.\nPick what catches your eye 👀",
+          sender: 'ai',
+          timestamp: new Date(),
+          aiImages: imgs
+        };
+        setMessages(prev => [...prev, aiMsg]);
+      } else {
+        setMessages(prev => [...prev, {
+          id: (Date.now() + 1).toString(),
+          text: `Sorry, there was an error. ${error instanceof Error ? error.message : 'Please try again.'}`,
+          sender: 'ai', timestamp: new Date()
+        }]);
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleReact = (id: string, emoji: string) => {
+    setMessages(prev => prev.map(m => m.id === id
+      ? { ...m, reactions: updateReactions(m.reactions || [], emoji) }
+      : m));
+  };
+
+  function updateReactions(reactions: { emoji: string; count: number }[], emoji: string) {
+    const idx = reactions.findIndex(r => r.emoji === emoji);
+    if (idx >= 0) {
+      const next = [...reactions];
+      next[idx] = { emoji, count: next[idx].count + 1 };
+      return next;
+    }
+    return [...reactions, { emoji, count: 1 }];
+  }
+
+  const handleReply = (id: string) => {
+    const msg = messages.find(m => m.id === id) || null;
+    setReplyingTo(msg);
+  };
+
+  const handleEdit = (id: string) => {
+    const msg = messages.find(m => m.id === id);
+    if (!msg || msg.sender !== 'user') return;
+    setPresetText(msg.text);
+    setReplyingTo(null);
+    setMessages(prev => prev.filter(m => m.id !== id));
+  };
+
+  const handleDelete = (id: string) => {
+    setMessages(prev => prev.map(m => m.id === id ? { ...m, deleted: true, text: 'Message deleted' } : m));
+  };
+
+  const handleQuickReplySelect = async (value: string, text: string) => {
+    setPresetText('');
+    if (value === 'find_car') {
+      setFlow({ stage: 'idle' });
+      await typeOut("Let’s keep it natural.\nTell me your budget, the car type (SUV/Sedan/Luxury), and when you need it.\nI’ll suggest the best options fast 🚗");
+      return;
+    }
+    if (value === 'view_inventory') {
+      const imgs = CAR_DATABASE.map(c => ((c as any).real_image || c.image_url));
+      await typeOut('Here’s our current lineup. Which one catches your eye? 👀', imgs);
+      return;
+    }
+    if (value === 'book_viewing') {
+      setBookingModal({ carId: CAR_DATABASE[0].id, carName: `${CAR_DATABASE[0].brand} ${CAR_DATABASE[0].model}` });
+      await typeOut('Share the car you want and a preferred date/time. I’ll lock it in.');
+      return;
+    }
+    if (value === 'location') {
+      await typeOut('📍 East Legon, Accra.\nAsk me for directions or tap the map.', undefined, { showLocation: true });
+      return;
+    }
+    if (value === 'talk_sales') {
+      await typeOut('Speak directly with our sales manager 📞 +233504512884 — quick and easy.');
+      setShowHandoff(true);
+      return;
+    }
+    handleSendMessage(value);
+  };
+
   return (
-    <div className="flex flex-col w-full h-full bg-[#0b141a] relative overflow-hidden">
+    <div className="flex flex-col w-full h-full bg-transparent relative overflow-hidden">
+      {chatBgUrl && (
+        <div
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            backgroundImage: `url(${chatBgUrl})`,
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
+      )}
 
       {/* Lead Capture Modal */}
       {showLeadModal && (
@@ -325,6 +584,9 @@ export function ChatArea({ onClose }: ChatAreaProps) {
           <div className="flex flex-col min-w-0">
             <h2 className="text-[15px] font-semibold text-[#e9edef] leading-tight truncate">
               Abena{leadInfo ? ` · ${leadInfo.name}` : ''}
+              <span className="ml-2 inline-block align-middle text-[10px] font-black text-[#00a884] bg-[#003d32] px-2 py-0.5 rounded-full border border-[#05846e]">
+                Modern UI
+              </span>
             </h2>
             <p className={cn("text-[11px] mt-0.5 transition-colors truncate", isTyping ? "text-[#00a884] font-medium" : "text-[#8696a0]")}>
               {isTyping ? "typing..." : "Drivemond Sales"}
@@ -337,7 +599,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
           <button
             onClick={openWhatsApp}
             title="Continue on WhatsApp"
-            className="hover:bg-[#3b4a54] p-2 rounded-full transition-colors"
+            className="hover:bg-[#3b4a54] p-1 rounded-[6%] transition-colors"
           >
             <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" className="text-[#25D366]">
               <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
@@ -348,7 +610,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
           <button
             onClick={() => setShowCalculator(prev => !prev)}
             title="Payment Calculator"
-            className={cn("p-2 rounded-full transition-colors", showCalculator ? "bg-[#3b4a54] text-[#00a884]" : "hover:bg-[#3b4a54]")}
+            className={cn("p-1 rounded-[6%] transition-colors", showCalculator ? "bg-[#3b4a54] text-[#00a884]" : "hover:bg-[#3b4a54]")}
           >
             <Calculator className="w-[18px] h-[18px]" />
           </button>
@@ -357,29 +619,32 @@ export function ChatArea({ onClose }: ChatAreaProps) {
           <button
             onClick={toggleAutoRead}
             title={autoRead ? "Disable Auto-read" : "Enable Auto-read"}
-            className={cn("p-2 rounded-full transition-colors", autoRead ? "text-[#00a884]" : "hover:bg-[#3b4a54]")}
+            className={cn("p-1 rounded-[6%] transition-colors", autoRead ? "text-[#00a884]" : "hover:bg-[#3b4a54]")}
           >
             {autoRead ? <Volume2 className="w-[18px] h-[18px]" /> : <VolumeX className="w-[18px] h-[18px]" />}
           </button>
 
           {/* Video hidden on mobile */}
-          <button onClick={startCall} className="hover:bg-[#3b4a54] p-2 rounded-full transition-colors hidden sm:flex">
+          <button onClick={startCall} className="hover:bg-[#3b4a54] p-1 rounded-[6%] transition-colors hidden sm:flex">
             <Video className="w-[18px] h-[18px]" />
           </button>
 
           {/* Phone */}
-          <button onClick={startCall} className="hover:bg-[#3b4a54] p-2 rounded-full transition-colors">
+          <button onClick={startCall} className="hover:bg-[#3b4a54] p-1 rounded-[6%] transition-colors">
             <Phone className="w-[18px] h-[18px]" />
+          </button>
+          <button onClick={finalizeSession} title="Finish & Send Transcript" className="hover:bg-[#3b4a54] p-1 rounded-[6%] transition-colors">
+            <Share2 className="w-[16px] h-[16px]" />
           </button>
 
           {/* Clear */}
-          <button onClick={clearChat} className="hover:bg-[#3b4a54] p-2 rounded-full transition-colors">
+          <button onClick={clearChat} className="hover:bg-[#3b4a54] p-1 rounded-[6%] transition-colors">
             <MoreVertical className="w-[18px] h-[18px]" />
           </button>
 
           {/* Close */}
           {onClose && (
-            <button onClick={onClose} className="hover:bg-[#3b4a54] p-2 rounded-full transition-colors">
+            <button onClick={onClose} className="hover:bg-[#3b4a54] p-1 rounded-[6%] transition-colors">
               <X className="w-[18px] h-[18px]" />
             </button>
           )}
@@ -401,7 +666,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
           <p className="text-[#8696a0] animate-pulse">Calling...</p>
           <button
             onClick={() => setIsCalling(false)}
-            className="mt-12 w-16 h-16 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
+            className="mt-12 w-16 h-16 bg-red-500 rounded-[6%] flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
           >
             <Phone className="w-8 h-8 text-white rotate-[135deg] fill-current" />
           </button>
@@ -429,6 +694,11 @@ export function ChatArea({ onClose }: ChatAreaProps) {
               key={msg.id}
               message={msg}
               onConfirmBooking={(carId, carName) => setBookingModal({ carId, carName })}
+              onReact={handleReact}
+              onReply={handleReply}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onQuickReplySelect={handleQuickReplySelect}
             />
           ))}
 
@@ -463,7 +733,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
 
       {/* Input */}
       <div className="z-10 flex-shrink-0">
-        <MessageInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+        <MessageInput onSendMessage={handleSendMessage} isLoading={isLoading} replyingTo={replyingTo} onClearReply={() => setReplyingTo(null)} presetText={presetText} />
       </div>
     </div>
   );

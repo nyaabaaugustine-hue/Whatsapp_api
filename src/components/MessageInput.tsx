@@ -6,9 +6,12 @@ import { Attachment } from '../types';
 interface MessageInputProps {
   onSendMessage: (text: string, attachment?: Attachment) => void;
   isLoading: boolean;
+  replyingTo?: { id: string; text: string } | null;
+  onClearReply?: () => void;
+  presetText?: string;
 }
 
-export function MessageInput({ onSendMessage, isLoading }: MessageInputProps) {
+export function MessageInput({ onSendMessage, isLoading, replyingTo, onClearReply, presetText }: MessageInputProps) {
   const [text, setText] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -34,59 +37,11 @@ export function MessageInput({ onSendMessage, isLoading }: MessageInputProps) {
     };
   }, [isRecording]);
 
-  const [isListening, setIsListening] = useState(false);
-  const recognitionRef = useRef<any>(null);
-
   useEffect(() => {
-    // Initialize Speech Recognition
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = true;
-      recognitionRef.current.interimResults = true;
-      recognitionRef.current.lang = 'en-US';
+    if (presetText !== undefined) setText(presetText || '');
+  }, [presetText]);
 
-      recognitionRef.current.onresult = (event: any) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-          } else {
-            interimTranscript += event.results[i][0].transcript;
-          }
-        }
-        
-        if (finalTranscript) {
-          setText(prev => prev + (prev ? ' ' : '') + finalTranscript);
-        }
-      };
-
-      recognitionRef.current.onerror = (event: any) => {
-        console.error('Speech recognition error', event.error);
-        setIsListening(false);
-      };
-
-      recognitionRef.current.onend = () => {
-        setIsListening(false);
-      };
-    }
-  }, []);
-
-  const toggleListening = () => {
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-    } else {
-      try {
-        recognitionRef.current?.start();
-        setIsListening(true);
-      } catch (err) {
-        console.error('Failed to start recognition', err);
-      }
-    }
-  };
+  // Removed voice-to-text toggle to avoid duplicate recording controls
 
   const handleSend = async () => {
     if ((!text.trim() && !attachmentPreview) || isLoading) return;
@@ -191,6 +146,16 @@ export function MessageInput({ onSendMessage, isLoading }: MessageInputProps) {
 
   return (
     <div className="relative flex flex-col w-full bg-[#202c33]">
+      {replyingTo && (
+        <div className="flex items-center justify-between px-4 py-2 border-b border-[#2f3b43] bg-[#1f2c34]">
+          <div className="text-[12px] text-[#aebac1] truncate max-w-[80%]">
+            Replying to: {replyingTo.text}
+          </div>
+          <button onClick={onClearReply} className="text-[#8696a0] hover:text-[#e9edef]">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       {showEmoji && (
         <div className="absolute bottom-full left-0 mb-2 z-50">
           <EmojiPicker onEmojiClick={onEmojiClick} theme={Theme.DARK} width={300} height={400} />
@@ -249,16 +214,6 @@ export function MessageInput({ onSendMessage, isLoading }: MessageInputProps) {
         </div>
 
         <div className="ml-4 flex items-center space-x-2 text-[#8696a0]">
-          {/* Voice to Text Button */}
-          <button 
-            onClick={toggleListening} 
-            disabled={isLoading || isRecording}
-            className={`hover:text-[#d1d7db] transition-colors disabled:opacity-50 ${isListening ? 'text-[#00a884] animate-pulse' : ''}`}
-            title="Voice to Text"
-          >
-            <Mic className={`w-[26px] h-[26px] ${isListening ? 'fill-current' : ''}`} />
-          </button>
-
           {text.trim() || attachmentPreview ? (
             <button 
               onClick={handleSend}
@@ -274,7 +229,7 @@ export function MessageInput({ onSendMessage, isLoading }: MessageInputProps) {
           ) : (
             <button 
               onClick={startRecording} 
-              disabled={isLoading || isListening} 
+              disabled={isLoading} 
               className="hover:text-[#d1d7db] transition-colors disabled:opacity-50"
               title="Voice Note"
             >

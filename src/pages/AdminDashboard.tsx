@@ -170,6 +170,7 @@ export default function AdminDashboard() {
   const [authed, setAuthed] = useState(false);
   const [password, setPassword] = useState('');
   const [tab, setTab] = useState<'overview' | 'conversations' | 'events'>('overview');
+  const [period, setPeriod] = useState<'today' | '7d' | '30d' | '90d'>('7d');
   const [stats, setStats] = useState<Stats | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
@@ -202,6 +203,58 @@ export default function AdminDashboard() {
 
   // Derived bookings from events
   const bookingEvents = events.filter(e => e.event_type === 'booking');
+  const dateCutoff = (() => {
+    const d = new Date();
+    if (period === 'today') d.setHours(0, 0, 0, 0);
+    else if (period === '7d') d.setDate(d.getDate() - 7);
+    else if (period === '30d') d.setDate(d.getDate() - 30);
+    else d.setDate(d.getDate() - 90);
+    return d;
+  })();
+  const periodEvents = events.filter(e => new Date(e.created_at) >= dateCutoff);
+  const periodBookings = bookingEvents.filter(e => new Date(e.created_at) >= dateCutoff);
+  const periodConvos = conversations.filter(c => new Date(c.started_at) >= dateCutoff || new Date(c.last_message_at) >= dateCutoff);
+  const bucketByDay = (arr: { created_at: string }[]) => {
+    const m: Record<string, number> = {};
+    arr.forEach(a => {
+      const d = new Date(a.created_at); const k = `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+      m[k] = (m[k] || 0) + 1;
+    });
+    const keys = Object.keys(m).sort((a,b) => new Date(a).getTime() - new Date(b).getTime());
+    return keys.map(k => m[k]);
+  };
+  const sparkSessions = bucketByDay(periodConvos.map(c => ({ created_at: c.started_at })));
+  const sparkBookings = bucketByDay(periodBookings);
+  const sparkEvents = bucketByDay(periodEvents);
+  const trend = (current: number, total: number) => {
+    if (total === 0) return 0;
+    return Math.round(((current - total / 2) / (total / 2)) * 100);
+  };
+  const sessionTrend = trend(periodConvos.length, conversations.length || 1);
+  const bookingTrend = trend(periodBookings.length, bookingEvents.length || 1);
+  const messageCount = conversations.reduce((acc, c) => acc + c.message_count, 0);
+  const periodMessageCount = periodConvos.reduce((acc, c) => acc + c.message_count, 0);
+  const messageTrend = trend(periodMessageCount, messageCount || 1);
+  const leadBuckets = {
+    hot: periodEvents.filter(e => e.lead_temperature === 'hot').length,
+    warm: periodEvents.filter(e => e.lead_temperature === 'warm').length,
+    cold: periodEvents.filter(e => e.lead_temperature === 'cold').length,
+  };
+  const convRate = (() => {
+    const total = periodEvents.length || 1;
+    return Math.round((leadBuckets.hot / total) * 100);
+  })();
+  const leadSourceCounts = (() => {
+    const counts: Record<string, number> = { whatsapp: 0, walkin: 0, website: 0, referral: 0 };
+    periodEvents.forEach(e => {
+      const src = (e.event_data?.source || '').toLowerCase();
+      if (src.includes('walk')) counts.walkin++;
+      else if (src.includes('web')) counts.website++;
+      else if (src.includes('ref')) counts.referral++;
+      else counts.whatsapp++;
+    });
+    return counts;
+  })();
 
   const handleExport = (format: 'json' | 'csv', type: 'events' | 'bookings' | 'conversations') => {
     if (type === 'events') {
@@ -259,26 +312,106 @@ export default function AdminDashboard() {
         {/* ── OVERVIEW ── */}
         {tab === 'overview' && (
           <div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-gray-300 font-semibold">Performance Overview</div>
+              <div className="flex items-center gap-2">
+                {(['today','7d','30d','90d'] as const).map(p => (
+                  <button key={p} onClick={() => setPeriod(p)} className={`text-xs px-3 py-1.5 rounded-lg ${period===p?'bg-[#25D366]/20 text-[#25D366] border border-[#25D366]/30':'bg-[#2a3942] text-white hover:bg-[#3d4f5c]'}`}>{p}</button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
               {[
-                { label: 'Total Sessions', value: stats?.totalSessions ?? '—', icon: '👥' },
-                { label: 'Total Messages', value: stats?.totalMessages ?? '—', icon: '💬' },
-                { label: 'Hot Leads', value: stats?.hotLeads ?? '—', icon: '🔥', color: 'text-red-400' },
-                { label: 'Warm Leads', value: stats?.warmLeads ?? '—', icon: '🌡️', color: 'text-yellow-400' },
-                { label: 'Cold Leads', value: stats?.coldLeads ?? '—', icon: '❄️', color: 'text-blue-400' },
-                { label: 'Bookings', value: bookingEvents.length || stats?.bookings || '—', icon: '📅', color: 'text-green-400' },
-              ].map(card => (
-                <div key={card.label} className="bg-[#1f2c34] border border-[#2f3b43] rounded-xl p-4">
-                  <div className="text-2xl mb-1">{card.icon}</div>
-                  <div className={`text-2xl font-bold ${card.color || 'text-white'}`}>{card.value}</div>
+                { label: 'Total Sessions', value: periodConvos.length, trend: sessionTrend, data: sparkSessions, color: 'text-white' },
+                { label: 'Messages', value: periodMessageCount, trend: messageTrend, data: sparkEvents, color: 'text-white' },
+                { label: 'Hot Leads', value: leadBuckets.hot, trend: convRate, data: sparkEvents, color: 'text-red-400' },
+                { label: 'Warm Leads', value: leadBuckets.warm, trend: 0, data: sparkEvents, color: 'text-yellow-400' },
+                { label: 'Cold Leads', value: leadBuckets.cold, trend: 0, data: sparkEvents, color: 'text-blue-400' },
+                { label: 'Bookings', value: periodBookings.length, trend: bookingTrend, data: sparkBookings, color: 'text-green-400' },
+              ].map((card,i) => (
+                <div key={i} className="bg-[#111b21]/80 backdrop-blur rounded-xl p-4 border border-[#2f3b43] shadow-lg hover:shadow-xl transition">
+                  <div className="flex items-baseline justify-between">
+                    <div className={`text-2xl font-bold ${card.color}`}>{card.value}</div>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${card.trend>=0?'bg-[#00a884]/20 text-[#00a884]':'bg-red-500/20 text-red-400'}`}>{card.trend>=0?'↑':'↓'} {Math.abs(card.trend)}%</span>
+                  </div>
                   <div className="text-gray-400 text-xs mt-1">{card.label}</div>
+                  <div className="mt-3 h-10">
+                    <svg width="100%" height="40">
+                      {(() => {
+                        const d = card.data; if (!d || d.length === 0) return null;
+                        const max = Math.max(...d); const step = 100/(d.length-1);
+                        const points = d.map((v,idx)=>`${idx*step},${40 - (max? (v/max)*40 : 0)}`).join(' ');
+                        return <polyline points={points} fill="none" stroke={card.color.includes('green')?'#25D366':'#8696a0'} strokeWidth="2" />;
+                      })()}
+                    </svg>
+                  </div>
                 </div>
               ))}
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
+              <div className="lg:col-span-5 bg-[#1f2c34] border border-[#2f3b43] rounded-xl p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold text-gray-300">Leads Funnel</h3>
+                  <span className="text-xs text-gray-500">{period.toUpperCase()}</span>
+                </div>
+                <div className="space-y-3">
+                  {[
+                    { label: 'Total Leads', value: periodEvents.length, color: 'bg-[#00a884]' },
+                    { label: 'Hot Leads', value: leadBuckets.hot, color: 'bg-red-500' },
+                    { label: 'Booked', value: periodBookings.length, color: 'bg-purple-500' },
+                  ].map(({label,value,color})=>(
+                    <div key={label}>
+                      <div className="flex justify-between text-xs text-gray-400 mb-1"><span>{label}</span><span>{value}</span></div>
+                      <div className="h-2 bg-[#111b21] rounded-full overflow-hidden">
+                        <div className={`h-2 ${color} rounded-full`} style={{ width: `${periodEvents.length>0? Math.max((value/periodEvents.length)*100, value>0?5:0):0}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="lg:col-span-4 bg-[#1f2c34] border border-[#2f3b43] rounded-xl p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold text-gray-300">Booking Revenue</h3>
+                  <div className="flex gap-2">
+                    {(['7d','30d','90d'] as const).map(p=>(
+                      <button key={p} onClick={()=>setPeriod(p)} className={`text-xs px-2 py-1 rounded ${period===p?'bg-[#00a884]/20 text-[#00a884]':'bg-[#2a3942] text-white hover:bg-[#3d4f5c]'}`}>{p}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="h-36">
+                  <svg width="100%" height="144">
+                    {(() => {
+                      const d = bucketByDay(periodBookings); if (d.length===0) return null;
+                      const max = Math.max(...d); const step = 100/(d.length-1);
+                      const pts = d.map((v,i)=>`${i*step},${144 - (max? (v/max)*120 : 0)}`).join(' ');
+                      return <polyline points={pts} fill="none" stroke="#25D366" strokeWidth="2" />;
+                    })()}
+                  </svg>
+                </div>
+              </div>
+              <div className="lg:col-span-3 bg-[#1f2c34] border border-[#2f3b43] rounded-xl p-5">
+                <h3 className="text-sm font-semibold text-gray-300 mb-4">Lead Sources</h3>
+                <div className="flex items-center gap-4">
+                  <div className="w-28 h-28 rounded-full" style={{ background: `conic-gradient(#25D366 0% ${leadSourceCounts.whatsapp/(periodEvents.length||1)*100}%, #f59e0b ${leadSourceCounts.whatsapp/(periodEvents.length||1)*100}% ${(leadSourceCounts.whatsapp+leadSourceCounts.walkin)/(periodEvents.length||1)*100}%, #3b82f6 ${(leadSourceCounts.whatsapp+leadSourceCounts.walkin)/(periodEvents.length||1)*100}% ${(leadSourceCounts.whatsapp+leadSourceCounts.walkin+leadSourceCounts.website)/(periodEvents.length||1)*100}%, #a78bfa ${(leadSourceCounts.whatsapp+leadSourceCounts.walkin+leadSourceCounts.website)/(periodEvents.length||1)*100}% 100%)` }} />
+                  <div className="space-y-2 text-xs text-gray-400">
+                    <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#25D366]" /> WhatsApp {leadSourceCounts.whatsapp}</div>
+                    <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#f59e0b]" /> Walk-in {leadSourceCounts.walkin}</div>
+                    <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#3b82f6]" /> Website {leadSourceCounts.website}</div>
+                    <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#a78bfa]" /> Referral {leadSourceCounts.referral}</div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Export Section */}
             <div className="bg-[#1f2c34] border border-[#2f3b43] rounded-xl p-5 mb-6">
-              <h2 className="font-semibold mb-4 text-gray-300">📥 Export Data</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-semibold text-gray-300">Data & Reports Center</h2>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-400">Auto email</label>
+                  <input type="checkbox" className="h-4 w-4 accent-[#00a884]" />
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {(['events', 'bookings', 'conversations'] as const).map(type => (
                   <div key={type} className="bg-[#0b141a] rounded-xl p-4">
@@ -295,6 +428,11 @@ export default function AdminDashboard() {
                         className="flex-1 flex items-center justify-center gap-1.5 bg-[#25D366]/20 hover:bg-[#25D366]/30 text-[#25D366] text-xs py-2 rounded-lg transition font-medium border border-[#25D366]/30">
                         <Download className="w-3 h-3" /> CSV
                       </button>
+                      <select className="text-xs px-2 py-2 rounded-lg bg-[#2a3942] text-white">
+                        <option>CSV</option>
+                        <option>JSON</option>
+                        <option>Excel</option>
+                      </select>
                     </div>
                   </div>
                 ))}

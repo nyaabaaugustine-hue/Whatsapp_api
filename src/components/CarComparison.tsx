@@ -69,7 +69,7 @@ export function CarComparison({ carId1, carId2, onBook }: CarComparisonProps) {
         {[car1, car2].map((car, i) => (
           <button key={i}
             onClick={() => onBook?.(car.id, `${car.brand} ${car.model}`)}
-            className="flex items-center justify-center gap-1.5 bg-[#00a884] hover:bg-[#008f72] active:scale-95 text-white text-[11px] font-bold py-2 rounded-xl transition-all">
+            className="flex items-center justify-center gap-1.5 bg-[#00a884] hover:bg-[#008f72] active:scale-95 text-white text-[11px] font-bold py-2 rounded-[6%] transition-all">
             <CalendarCheck className="w-3 h-3" />
             Book {car.model}
           </button>

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { ChatArea } from './components/ChatArea';
 import AdminDashboard from './pages/AdminDashboard';
-import { X, MessageCircle } from 'lucide-react';
+import { X, MessageCircle, BadgeCheck } from 'lucide-react';
+import { CAR_DATABASE } from './data/cars';
+import { BookingModal } from './components/BookingModal';
 
 const WA_ICON = (
   <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor">
@@ -12,6 +14,9 @@ const WA_ICON = (
 export default function App() {
   const [isOpen, setIsOpen] = useState(false);
   const [view, setView] = useState<'home' | 'admin'>('home');
+  const featured = CAR_DATABASE.slice(0, 3);
+  const listing = CAR_DATABASE.length > 6 ? CAR_DATABASE.slice(3, 9) : CAR_DATABASE.slice(0, 6);
+  const [bookingModal, setBookingModal] = useState<{ carId: string; carName: string } | null>(null);
 
   // Lock body scroll when chat open (mobile full screen)
   useEffect(() => {
@@ -30,7 +35,9 @@ export default function App() {
 
   useEffect(() => {
     const handleHashChange = () => {
-      setView(window.location.hash === '#admin' ? 'admin' : 'home');
+      const h = window.location.hash;
+      if (h === '#admin') setView('admin');
+      else setView('home');
     };
     window.addEventListener('hashchange', handleHashChange);
     handleHashChange();
@@ -42,123 +49,145 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f172a] font-sans">
-
-      {/* ══════════════════════════════
-          MOBILE LAYOUT  (< 640px)
-      ══════════════════════════════ */}
-      <div className="block sm:hidden">
-        <div className="bg-gradient-to-br from-[#0f172a] to-[#1e293b] px-5 pt-10 pb-6 text-center">
-          <div className="text-5xl mb-3">🚗</div>
-          <h1 className="text-white text-2xl font-black leading-tight mb-2">Premium Cars<br />in Ghana</h1>
-          <p className="text-slate-400 text-sm leading-relaxed">Clean, reliable vehicles. Daily drivers to luxury models.</p>
+    <div className="min-h-screen bg-[#0f172a] font-sans overflow-x-hidden">
+      <header className="border-b border-[#1e293b] bg-[#0f172a]">
+        <div className="max-w-6xl mx-auto px-5 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-[#e9edef] font-black text-xl">Drivemond</span>
+            <span className="text-xs text-white bg-[#800020] px-2 py-0.5 rounded-full font-black">Ghana</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { document.getElementById('inventory')?.scrollIntoView({ behavior: 'smooth' }); }}
+              className="border border-[#800020] text-[#e9edef] px-4 py-2 rounded-full text-sm font-bold hover:bg-[#fbe9ee]"
+            >
+              Browse Inventory
+            </button>
+          </div>
         </div>
+      </header>
 
-        <img
-          src="https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772196823/admin-ajax_qqvclw.jpg"
-          alt="Cars"
-          className="w-full h-48 object-cover"
-        />
-
-        <div className="bg-white px-4 py-6">
-          <h2 className="text-center text-sm font-black uppercase text-slate-500 mb-4">✨ What We Offer</h2>
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            {[
-              { icon: '🏎', label: 'Luxury Sedans' },
-              { icon: '🏔', label: 'Rugged SUVs' },
-              { icon: '⛽', label: 'Fuel Efficient' },
-              { icon: '🛡', label: 'Verified History' },
-            ].map(f => (
-              <div key={f.label} className="bg-slate-50 rounded-xl p-4 text-center shadow-sm">
-                <div className="text-2xl mb-1">{f.icon}</div>
-                <p className="text-xs font-bold text-slate-700">{f.label}</p>
+      <section className="relative">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0f172a] via-[#0f172a] to-[#0b141a]" />
+        <div className="max-w-6xl mx-auto px-5 py-14 relative">
+          <div className="grid gap-8 lg:grid-cols-2 items-center">
+            <div>
+              <h1 className="text-white text-4xl sm:text-5xl font-black leading-tight">Find Your Car. Beautifully Simple.</h1>
+              <p className="text-[#aebac1] text-base mt-3 max-w-xl">Clean, verified vehicles with transparent pricing. Book a test drive or chat instantly.</p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  onClick={() => { document.getElementById('inventory')?.scrollIntoView({ behavior: 'smooth' }); }}
+                  className="border border-[#2f3b43] text-[#e9edef] px-6 py-3 rounded-xl font-black hover:bg-[#13202a]"
+                >
+                  Browse Cars
+                </button>
               </div>
-            ))}
-          </div>
-
-          <div className="bg-blue-50 rounded-xl p-4 mb-6">
-            <h3 className="text-sm font-black text-blue-900 mb-3">💎 Why Choose Us?</h3>
-            {['Clean Title & Verified History', 'Competitive Pricing in GHS', 'Flexible Payment Options', 'Professional After-Sales Support', 'Nationwide Delivery'].map(b => (
-              <p key={b} className="text-xs font-semibold text-blue-800 py-1">✔ {b}</p>
-            ))}
-          </div>
-
-          <button
-            onClick={() => setIsOpen(true)}
-            className="w-full bg-[#25D366] text-white py-4 rounded-2xl font-black text-base flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform"
-          >
-            <MessageCircle className="w-5 h-5" />
-            Chat with Abena Now
-          </button>
-          <p className="text-center text-xs text-slate-400 mt-2">Typically replies in seconds</p>
-        </div>
-
-        <div className="bg-[#0f172a] py-6 text-center">
-          <p className="text-slate-500 text-xs">© 2026 Drivemond. All Rights Reserved.</p>
-        </div>
-      </div>
-
-      {/* ══════════════════════════════
-          DESKTOP LAYOUT  (≥ 640px)
-      ══════════════════════════════ */}
-      <div className="hidden sm:block">
-        <div className="max-w-3xl mx-auto px-4 py-10">
-          <div className="bg-white rounded-2xl overflow-hidden shadow-2xl">
-            <div className="bg-gradient-to-r from-[#0f172a] to-[#1e3a8a] px-8 py-10 text-center">
-              <h1 className="text-white text-3xl font-black uppercase tracking-wide">
-                🚗 Premium Vehicle Sales & Consulting
-              </h1>
+              <div className="mt-8 grid grid-cols-3 gap-3 max-w-md">
+                <div className="bg-[#101a21] border border-[#1e293b] rounded-xl p-4 text-center">
+                  <p className="text-2xl">🛡</p>
+                  <p className="text-[#aebac1] text-xs font-bold mt-1">Verified History</p>
+                </div>
+                <div className="bg-[#101a21] border border-[#1e293b] rounded-xl p-4 text-center">
+                  <p className="text-2xl">⛽</p>
+                  <p className="text-[#aebac1] text-xs font-bold mt-1">Fuel Efficient</p>
+                </div>
+                <div className="bg-[#101a21] border border-[#1e293b] rounded-xl p-4 text-center">
+                  <p className="text-2xl">🚚</p>
+                  <p className="text-[#aebac1] text-xs font-bold mt-1">Nationwide Delivery</p>
+                </div>
+              </div>
             </div>
-            <img
-              src="https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772196823/admin-ajax_qqvclw.jpg"
-              alt="Hero"
-              className="w-full h-64 object-cover"
-            />
-            <div className="px-12 py-10 text-center">
-              <h2 className="text-xl font-black uppercase text-blue-900 mb-4">Find Your Dream Car Today</h2>
-              <p className="text-slate-600 leading-relaxed font-semibold">
-                We offer the cleanest and most reliable vehicles in the Ghanaian market. From fuel-efficient daily drivers to high-end luxury models, we help you find the perfect match with prestige and peace of mind.
-              </p>
+            <div className="rounded-2xl overflow-hidden border border-[#1e293b]">
+              <img src="https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772196823/admin-ajax_qqvclw.jpg" alt="Hero" className="w-full h-[340px] object-cover" />
             </div>
-            <div className="bg-slate-50 px-8 py-8">
-              <h2 className="text-center text-lg font-black uppercase mb-6">✨ Key Features</h2>
-              <div className="grid grid-cols-2 gap-4">
-                {[
-                  { icon: '🏎', label: 'Luxury Sedans' },
-                  { icon: '🏔', label: 'Rugged SUVs' },
-                  { icon: '⛽', label: 'Fuel Efficient' },
-                  { icon: '🛡', label: 'Verified History' },
-                  { icon: '🤝', label: 'Expert Consulting' },
-                  { icon: '🚚', label: 'Nationwide Delivery' },
-                ].map(f => (
-                  <div key={f.label} className="bg-white rounded-xl p-5 text-center shadow-sm">
-                    <div className="text-3xl mb-2">{f.icon}</div>
-                    <p className="font-bold text-sm text-slate-700">{f.label}</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Inventory Carousel */}
+      {CAR_DATABASE.length > 6 && (
+        <section id="inventory" className="max-w-6xl mx-auto px-5 py-6">
+          <div className="text-white font-black text-2xl mb-3">Featured Inventory</div>
+          <div className="overflow-x-auto no-scrollbar">
+            <div className="flex gap-4 snap-x snap-mandatory">
+              {featured.map(car => {
+                const img = (car as any).real_image || car.image_url;
+                return (
+                  <div key={`carousel-${car.id}`} className="snap-center flex-shrink-0 w-[320px] sm:w-[360px] rounded-2xl overflow-hidden bg-[#101a21] border border-[#1e293b] shadow-sm">
+                    <div className="relative">
+                      <img src={img} alt={`${car.brand} ${car.model}`} className="w-full h-40 object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+                      <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between">
+                        <div>
+                          <p className="text-white font-black text-[14px] drop-shadow">{car.brand} {car.model}</p>
+                          <p className="text-white/70 text-[10px]">{car.year}</p>
+                        </div>
+                        <p className="text-[#e9edef] font-black text-[14px] drop-shadow">₵{car.price.toLocaleString()}</p>
+                      </div>
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
-            <div className="px-12 py-10">
-              <h2 className="text-lg font-black uppercase text-center text-blue-900 mb-6">💎 Why Choose Us?</h2>
-              {['Clean Title & Verified History', 'Competitive Pricing in GHS', 'Flexible Payment Options', 'Professional After-Sales Support', 'Nationwide Delivery Available'].map(b => (
-                <p key={b} className="font-bold text-slate-700 py-1.5">✔ {b}</p>
-              ))}
-            </div>
-            <div className="bg-slate-100 px-8 py-12 text-center">
-              <h2 className="text-xl font-black uppercase mb-6">Ready to Find Your Next Car?</h2>
-              <button
-                onClick={() => setIsOpen(true)}
-                className="bg-[#25D366] text-white px-10 py-4 rounded-xl font-black text-lg hover:bg-[#20bd5a] transition shadow-lg"
-              >
-                💬 Chat with Abena
-              </button>
-            </div>
-            <div className="bg-[#0f172a] py-6 text-center">
-              <p className="text-slate-500 text-sm">© 2026 Drivemond. All Rights Reserved.</p>
+                );
+              })}
             </div>
           </div>
+        </section>
+      )}
+
+      {/* Inventory Grid */}
+      <section className="max-w-6xl mx-auto px-5 pb-10">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {listing.map(car => {
+            const img = (car as any).real_image || car.image_url;
+            return (
+              <div key={car.id} className="group rounded-2xl overflow-hidden bg-[#101a21] border border-[#1e293b] shadow-sm hover:shadow-xl transition-all">
+                <div className="relative">
+                  <img src={img} alt={`${car.brand} ${car.model}`} className="w-full h-48 object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent opacity-90" />
+                  <div className="absolute top-3 left-3 text-white text-xs px-2 py-1 rounded-full bg-black/50 border border-white/20">
+                    {car.year}
+                  </div>
+                  <div className="absolute top-3 right-3 inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-[#003d32] text-[#25D366] border border-[#05846e]">
+                    <BadgeCheck className="w-3 h-3" /> Available
+                  </div>
+                  <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
+                    <div>
+                      <p className="text-white font-black text-[16px] drop-shadow">{car.brand} {car.model}</p>
+                      <p className="text-white/80 text-[11px]">Clean title · Verified</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[#e9edef] font-black text-[18px] drop-shadow">₵{car.price.toLocaleString()}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4">
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {(car as any).transmission && <span className="text-[11px] px-2 py-1 rounded-full bg-[#2a3942] text-[#aebac1] border border-[#3d4f5c]">⚙ {(car as any).transmission}</span>}
+                    {(car as any).fuel && <span className="text-[11px] px-2 py-1 rounded-full bg-[#2a3942] text-[#aebac1] border border-[#3d4f5c]">⛽ {(car as any).fuel}</span>}
+                    {(car as any).mileage && <span className="text-[11px] px-2 py-1 rounded-full bg-[#2a3942] text-[#aebac1] border border-[#3d4f5c]">📍 {(car as any).mileage}</span>}
+                  </div>
+                  <div className="grid grid-cols-1 gap-2" />
+                </div>
+              </div>
+            );
+          })}
         </div>
-      </div>
+      </section>
+
+
+      {bookingModal && (
+        <BookingModal
+          carId={bookingModal.carId}
+          carName={bookingModal.carName}
+          onConfirm={() => { setBookingModal(null); }}
+          onClose={() => setBookingModal(null)}
+        />
+      )}
+
+      <footer className="bg-[#0f172a]">
+        <div className="max-w-6xl mx-auto px-5 py-6 text-center">
+          <p className="text-[#8696a0] text-xs">© 2026 Drivemond. All Rights Reserved.</p>
+        </div>
+      </footer>
 
 
 
@@ -187,12 +216,12 @@ export default function App() {
             className="
               hidden sm:flex
               fixed bottom-24 right-6 z-[999]
-              w-[378px]
+              w-[416px]
               flex-col
               bg-[#0b141a] rounded-2xl shadow-2xl overflow-hidden
               border border-[#2f3b43]
             "
-            style={{ animation: 'slideUp 0.25s ease', height: 'min(612px, calc(100vh - 120px))' }}
+            style={{ animation: 'slideUp 0.25s ease', height: 'min(673px, calc(100vh - 120px))' }}
           >
             <ChatArea onClose={() => setIsOpen(false)} />
           </div>

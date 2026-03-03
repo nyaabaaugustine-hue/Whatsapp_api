@@ -8,6 +8,7 @@ module.exports = async function handler(req, res) {
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
   const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
+  const FREE_LLM_KEY = process.env.APIFREELLM_API_KEY;
 
   const supabaseHeaders = {
     'Content-Type': 'application/json',
@@ -36,19 +37,34 @@ module.exports = async function handler(req, res) {
       await logToSupabase('messages', { session_id, role: 'user', content: user_message });
     }
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENROUTER_KEY}`,
-        'HTTP-Referer': 'https://salescoms.vercel.app',
-        'X-Title': 'Abena Car Sales'
-      },
-      body: JSON.stringify({
-        model: 'openrouter/auto',
-        messages: [{ role: 'user', content: message }]
-      })
-    });
+    let response;
+    if (FREE_LLM_KEY) {
+      response = await fetch('https://apifreellm.com/api/v1/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${FREE_LLM_KEY}`,
+        },
+        body: JSON.stringify({
+          message,
+          model: 'apifreellm'
+        })
+      });
+    } else {
+      response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENROUTER_KEY}`,
+          'HTTP-Referer': 'https://salescoms.vercel.app',
+          'X-Title': 'Abena Car Sales'
+        },
+        body: JSON.stringify({
+          model: 'openrouter/auto',
+          messages: [{ role: 'user', content: message }]
+        })
+      });
+    }
 
     if (!response.ok) {
       const err = await response.text();
@@ -56,7 +72,7 @@ module.exports = async function handler(req, res) {
     }
 
     const data = await response.json();
-    const reply = data.choices?.[0]?.message?.content || '';
+    const reply = FREE_LLM_KEY ? (data.response || '') : (data.choices?.[0]?.message?.content || '');
 
     let metadata = null;
     const jsonMatches = [...reply.matchAll(/```json\n([\s\S]*?)\n```/g)];

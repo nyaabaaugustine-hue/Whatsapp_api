@@ -61,7 +61,7 @@ export function DepositCard({ carName, depositAmount, bookingId }: DepositCardPr
             </div>
             <button
               onClick={() => copy(acc.number, acc.label)}
-              className="flex items-center gap-1 bg-[#2a3942] hover:bg-[#3d4f5c] text-[#8696a0] text-[10px] px-2.5 py-1.5 rounded-lg transition-all active:scale-95"
+              className="flex items-center gap-1 bg-[#2a3942] hover:bg-[#3d4f5c] text-[#8696a0] text-[10px] px-2.5 py-1.5 rounded-[6%] transition-all active:scale-95"
             >
               {copied === acc.label
                 ? <><Check className="w-3 h-3 text-[#00a884]" /><span className="text-[#00a884]">Copied!</span></>

@@ -1,7 +1,7 @@
 import { format } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
-import { Volume2, VolumeX, MessageCircle, CalendarCheck, Share2, TrendingUp, Copy, Check, Smartphone, Zap } from 'lucide-react';
+import { Volume2, VolumeX, MessageCircle, CalendarCheck, Share2, TrendingUp, Copy, Check, Smartphone, Zap, Smile, Reply, Edit, Trash2 } from 'lucide-react';
 import { LocationCard } from './LocationCard';
 import { CarComparison } from './CarComparison';
 import { DepositCard } from './DepositCard';
@@ -9,10 +9,16 @@ import { useState } from 'react';
 import { Message } from '../types';
 import { cn } from '../lib/utils';
 import { CAR_DATABASE } from '../data/cars';
+import { QuickReplies } from './QuickReplies';
 
 interface MessageBubbleProps {
   message: Message;
   onConfirmBooking?: (carId: string, carName: string) => void;
+  onReact?: (id: string, emoji: string) => void;
+  onReply?: (id: string) => void;
+  onEdit?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onQuickReplySelect?: (value: string, text: string) => void;
 }
 
 // ── Share car via WhatsApp ────────────────────────────────────────────
@@ -107,7 +113,7 @@ function CarCard({ url, onBook }: { url: string; onBook?: (id: string, name: str
           <div className="flex gap-2">
             <button
               onClick={() => onBook?.(car.id, `${car.brand} ${car.model}`)}
-              className="flex-1 bg-[#00a884] hover:bg-[#008f72] active:scale-[0.97] text-white text-[12px] font-bold py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-md shadow-[#00a884]/20"
+              className="flex-1 bg-[#00a884] hover:bg-[#008f72] active:scale-[0.97] text-white text-[12px] font-bold py-2 rounded-[6%] transition-all flex items-center justify-center gap-1.5 shadow-md shadow-[#00a884]/20"
             >
               <CalendarCheck className="w-3.5 h-3.5" />
               Book Viewing
@@ -115,7 +121,7 @@ function CarCard({ url, onBook }: { url: string; onBook?: (id: string, name: str
             <button
               onClick={handleShare}
               className={cn(
-                'w-9 h-9 flex-shrink-0 rounded-xl flex items-center justify-center transition-all active:scale-95 border',
+                'w-9 h-9 flex-shrink-0 rounded-[6%] flex items-center justify-center transition-all active:scale-95 border',
                 shared
                   ? 'bg-[#00a884]/20 border-[#00a884]/40 text-[#00a884]'
                   : 'bg-[#2a3942] border-[#3d4f5c]/50 text-[#8696a0] hover:text-white hover:bg-[#3d4f5c]'
@@ -146,10 +152,11 @@ function AudioMessage({ url }: { url: string }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────
-export function MessageBubble({ message, onConfirmBooking }: MessageBubbleProps) {
+export function MessageBubble({ message, onConfirmBooking, onReact, onReply, onEdit, onDelete, onQuickReplySelect }: MessageBubbleProps) {
   const isUser = message.sender === 'user';
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
+  const [showReactions, setShowReactions] = useState(false);
 
   const speak = () => {
     if (!('speechSynthesis' in window)) return;
@@ -183,6 +190,12 @@ export function MessageBubble({ message, onConfirmBooking }: MessageBubbleProps)
           'max-w-[88%] rounded-[10px] px-[9px] py-[6px] relative shadow-[0_1px_2px_rgba(0,0,0,0.25)]',
           isUser ? 'bg-[#005c4b] rounded-tr-none' : 'bg-[#202c33] rounded-tl-none'
         )}>
+
+          {message.replyPreview && (
+            <div className={cn('text-[11px] mb-1 px-2 py-1 rounded-md border', isUser ? 'bg-[#016a58] border-[#05846e] text-[#cdeee6]' : 'bg-[#1d2a33] border-[#2f3b43] text-[#aebac1]')}>
+              {message.replyPreview}
+            </div>
+          )}
 
           {/* Audio attachment */}
           {message.attachment?.type === 'audio' && <AudioMessage url={message.attachment.url} />}
@@ -228,7 +241,7 @@ export function MessageBubble({ message, onConfirmBooking }: MessageBubbleProps)
                   {/* Speak button */}
                   <button
                     onClick={speak}
-                    className="absolute -right-1 -top-1 p-1 text-[#8696a0] hover:text-[#e9edef] opacity-0 group-hover:opacity-100 transition-opacity rounded-full hover:bg-white/10"
+                    className="absolute -right-1 -top-1 p-1 text-[#8696a0] hover:text-[#e9edef] opacity-0 group-hover:opacity-100 transition-opacity rounded-[6%] hover:bg-white/10"
                   >
                     {isSpeaking ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
                   </button>
@@ -245,7 +258,7 @@ export function MessageBubble({ message, onConfirmBooking }: MessageBubbleProps)
                         <a
                           href="https://wa.me/233504512884"
                           target="_blank" rel="noopener noreferrer"
-                          className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] active:scale-[0.97] text-white py-2.5 px-4 rounded-xl text-[12px] font-bold transition-all shadow-md shadow-[#25D366]/20"
+                          className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] active:scale-[0.97] text-white py-1.5 px-2 rounded-[6%] text-[12px] font-bold transition-all shadow-md shadow-[#25D366]/20"
                         >
                           <MessageCircle className="w-4 h-4" />
                           Chat with Owner on WhatsApp
@@ -254,7 +267,7 @@ export function MessageBubble({ message, onConfirmBooking }: MessageBubbleProps)
                       {message.bookingProposal && !isConfirmed && (
                         <button
                           onClick={() => { onConfirmBooking?.(message.bookingProposal!.carId, message.bookingProposal!.carName); setIsConfirmed(true); }}
-                          className="flex items-center justify-center gap-2 bg-[#00a884] hover:bg-[#008f72] active:scale-[0.97] text-white py-2.5 px-4 rounded-xl text-[12px] font-bold transition-all shadow-md"
+                          className="flex items-center justify-center gap-2 bg-[#00a884] hover:bg-[#008f72] active:scale-[0.97] text-white py-1.5 px-2 rounded-[6%] text-[12px] font-bold transition-all shadow-md"
                         >
                           <CalendarCheck className="w-4 h-4" />
                           Confirm Booking · {message.bookingProposal.carName}
@@ -264,6 +277,52 @@ export function MessageBubble({ message, onConfirmBooking }: MessageBubbleProps)
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {message.quickReplies && message.quickReplies.length > 0 && onQuickReplySelect && (
+            <QuickReplies replies={message.quickReplies} onSelect={onQuickReplySelect} />
+          )}
+
+          <div className="flex items-center justify-between mt-1">
+            <div className="flex items-center gap-1">
+              {message.reactions?.map(r => (
+                <span key={r.emoji} className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#2a3942] text-[#e9edef] border border-[#3d4f5c]">
+                  {r.emoji} {r.count}
+                </span>
+              ))}
+            </div>
+            <div className="flex items-center gap-1 text-[#aebac1]">
+              {!isUser && (
+                <>
+                  <button onClick={() => setShowReactions(s => !s)} className="p-1 rounded-full hover:bg-[#3b4a54]">
+                    <Smile className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => onReply?.(message.id)} className="p-1 rounded-full hover:bg-[#3b4a54]">
+                    <Reply className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
+              {isUser && (
+                <>
+                  <button onClick={() => onEdit?.(message.id)} className="p-1 rounded-full hover:bg-[#3b4a54]">
+                    <Edit className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => onDelete?.(message.id)} className="p-1 rounded-full hover:bg-[#3b4a54]">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {showReactions && (
+            <div className="mt-1 flex gap-1">
+              {['👍','❤️','🔥','😊','🤝','💰'].map(e => (
+                <button key={e} onClick={() => { onReact?.(message.id, e); setShowReactions(false); }} className="text-[13px] px-1 py-0.5 rounded-[6%] bg-[#2a3942] text-[#e9edef] border border-[#3d4f5c] hover:bg-[#3b4a54]">
+                  {e}
+                </button>
+              ))}
             </div>
           )}
 

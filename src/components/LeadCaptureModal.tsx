@@ -15,8 +15,8 @@ export function LeadCaptureModal({ onSubmit, onSkip }: LeadCaptureModalProps) {
   };
 
   return (
-    <div className="absolute inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center">
-      <div className="bg-[#111b21] rounded-t-3xl sm:rounded-2xl w-full sm:max-w-sm p-6 shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+    <div className="absolute inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-start sm:items-center justify-center">
+      <div className="bg-[#111b21] rounded-t-3xl sm:rounded-2xl w-full sm:max-w-sm p-6 mt-6 sm:mt-0 shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
         <div className="flex items-center justify-between mb-5">
           <div>
             <h3 className="text-[#e9edef] font-bold text-lg">Quick Intro 👋</h3>
@@ -60,6 +60,15 @@ export function LeadCaptureModal({ onSubmit, onSkip }: LeadCaptureModalProps) {
         </button>
         {(!name.trim() || !phone.trim()) && (
           <p className="text-center text-[#8696a0] text-xs mt-2">Both name and phone are required</p>
+        )}
+        {onSkip && (
+          <button
+            onClick={onSkip}
+            className="w-full mt-3 text-[#aebac1] hover:text-white text-xs font-bold py-2 rounded-xl transition-colors hover:bg-white/5"
+            aria-label="Skip for now"
+          >
+            Skip for now
+          </button>
         )}
       </div>
     </div>

@@ -42,4 +42,13 @@ export interface Message {
     items: { label: string; value: string }[];
   };
   showLocation?: boolean;
+  isProactive?: boolean;
+  compareCard?: { carId1: string; carId2: string };
+  depositCard?: { carName: string; depositAmount: number };
+  replyToId?: string;
+  replyPreview?: string;
+  edited?: boolean;
+  deleted?: boolean;
+  reactions?: { emoji: string; count: number }[];
+  readReceipt?: 'sent' | 'delivered' | 'read';
 }

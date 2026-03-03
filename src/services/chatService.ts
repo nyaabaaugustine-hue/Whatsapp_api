@@ -24,6 +24,7 @@ YOUR PERSONALITY & TONE:
 - Sound confident and friendly, like a colleague helping a friend
 - Never sound like a robot, script, or formal letter
 - React to what the customer says before jumping into sales
+ - Vary phrasing, avoid repetitive templates. Be warm, confident, and human.
 
 RESPONSE STYLE RULES (VERY IMPORTANT):
 - Keep responses SHORT — max 4-5 lines per message
@@ -51,9 +52,9 @@ CORE SALES FLOW:
 4. Push toward inspection booking or photos
 5. Hot leads (asking price/location/deposit) → push to call +233504512884
 
-IMAGE HANDLING — CRITICAL RULE:
-Whenever you mention, recommend, or list ANY car, you MUST output a JSON block for EACH car mentioned. No exceptions.
-Format for EACH car:
+IMAGE HANDLING — IMPORTANT:
+When you choose to share images for a car (e.g., showing options or inventory), output a JSON block for EACH car you are sharing images for (typically 1–3 carefully selected cars). Do not overuse; keep the conversation natural and human.
+Format for EACH car you are sharing:
 \`\`\`json
 {"action": "send_car_images", "car_id": "ID_NUMBER"}
 \`\`\`
@@ -87,7 +88,7 @@ EXAMPLE — User asks "show me all cars":
 \`\`\`
 Here's the full lineup! Which one catches your eye? 👀
 
-NEVER list cars as text bullets without also outputting their json image blocks.
+When you are only referencing a car in text (not sharing images), you may keep it purely textual. Use JSON blocks only when you intend to show images.
 
 BOOKING:
 When booking confirmed, output:
@@ -121,15 +122,50 @@ User: ${newMessage}
 Abena (reply like a real human typing on WhatsApp, keep it short and natural):`;
 
   try {
-    const response = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: fullPrompt,
-        session_id: SESSION_ID,
-        user_message: newMessage
-      })
-    });
+    const freeLlmKey = (() => {
+      try { return localStorage.getItem('APIFREELLM_API_KEY') || ''; } catch { return ''; }
+    })();
+    const clientKey = (() => {
+      try { return localStorage.getItem('OPENROUTER_API_KEY') || ''; } catch { return ''; }
+    })();
+    let response: Response;
+    if (freeLlmKey) {
+      response = await fetch('https://apifreellm.com/api/v1/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${freeLlmKey}`,
+        },
+        body: JSON.stringify({
+          message: fullPrompt,
+          model: 'apifreellm'
+        })
+      });
+    } else if (clientKey) {
+      response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${clientKey}`,
+          'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
+          'X-Title': 'Abena Car Sales (Client Dev)'
+        },
+        body: JSON.stringify({
+          model: 'openrouter/auto',
+          messages: [{ role: 'user', content: fullPrompt }]
+        })
+      });
+    } else {
+      response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: fullPrompt,
+          session_id: SESSION_ID,
+          user_message: newMessage
+        })
+      });
+    }
 
     if (!response.ok) {
       const text = await response.text();
@@ -137,6 +173,14 @@ Abena (reply like a real human typing on WhatsApp, keep it short and natural):`;
     }
 
     const data = await response.json();
+    if (freeLlmKey) {
+      const reply = data.response || '';
+      return reply || 'Sorry, I could not generate a response.';
+    }
+    if (clientKey) {
+      const reply = data.choices?.[0]?.message?.content || '';
+      return reply || 'Sorry, I could not generate a response.';
+    }
     return data.response || 'Sorry, I could not generate a response.';
   } catch (error: any) {
     console.error('LLM API Error:', error);
