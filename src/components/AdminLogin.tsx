@@ -210,7 +210,18 @@ export function AdminLogin({ onAuth }: AdminLoginProps) {
   const dots = [0,1,2,3];
 
   return (
-    <div className="min-h-screen bg-[#0b141a] flex items-center justify-center p-4 select-none">
+    <div className="relative min-h-screen bg-[#0b141a] flex items-center justify-center p-4 select-none overflow-hidden">
+      <div
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          backgroundImage: `url(https://res.cloudinary.com/dx1nrew3h/image/upload/v1772512677/aaaaa_w3eapq.jpg)`,
+          backgroundRepeat: 'no-repeat',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          filter: 'saturate(0.9) brightness(0.8)',
+        }}
+      />
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-[#0b141a]/70 via-[#0b141a]/80 to-[#0b141a]" />
       {/* Honeypot — hidden, should never be filled by humans */}
       <input
         type="text"
@@ -221,8 +232,7 @@ export function AdminLogin({ onAuth }: AdminLoginProps) {
         style={{ position: 'absolute', left: '-9999px', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }}
       />
 
-      <div className="w-full max-w-[320px]">
-        {/* Header */}
+      <div className="w-full max-w-[360px]">
         <div className="text-center mb-8">
           <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 transition-all duration-300 ${
             status === 'success' ? 'bg-[#00a884]/30 border-2 border-[#00a884]' :
@@ -234,14 +244,13 @@ export function AdminLogin({ onAuth }: AdminLoginProps) {
              isLocked             ? <AlertTriangle className="w-10 h-10 text-orange-400" /> :
                                     <Shield className="w-10 h-10 text-[#00a884]" />}
           </div>
-          <h1 className="text-white text-2xl font-black tracking-tight">Admin Access</h1>
-          <p className="text-[#8696a0] text-sm mt-1">Drivemond Sales Intelligence</p>
+          <h1 className="text-white text-3xl font-black tracking-tight">Admin Access</h1>
+          <p className="text-[#aebac1] text-sm mt-1">Drivemond Sales Intelligence</p>
+          <div className="mt-2 inline-flex items-center gap-2 px-2 py-1 rounded-full bg-[#003d32] text-[#25D366] border border-[#05846e] text-[11px] font-bold">WhatsApp Secure</div>
         </div>
 
-        {/* Card */}
-        <div className="bg-[#1f2c34] border border-[#2f3b43] rounded-2xl p-6 shadow-2xl">
+        <div className="bg-[#1f2c34]/70 backdrop-blur-xl border border-[#2f3b43] rounded-2xl p-6 shadow-[0_10px_40px_rgba(0,0,0,0.4)]">
 
-          {/* PIN dots */}
           <div className={`flex justify-center gap-4 mb-5 transition-all ${status === 'error' ? 'animate-[shake_0.4s_ease]' : ''}`}>
             {dots.map(i => (
               <div key={i} className={`w-11 h-11 rounded-xl border-2 flex items-center justify-center transition-all duration-150 ${
@@ -260,7 +269,6 @@ export function AdminLogin({ onAuth }: AdminLoginProps) {
             ))}
           </div>
 
-          {/* Status message */}
           <div className="h-8 flex items-center justify-center mb-3">
             {isLocked ? (
               <div className="flex items-center gap-1.5 text-orange-400 text-sm font-medium">
@@ -278,23 +286,22 @@ export function AdminLogin({ onAuth }: AdminLoginProps) {
             )}
           </div>
 
-          {/* Keypad */}
           <div className="grid grid-cols-3 gap-2.5">
             {keys.flat().map((btn, i) => {
               if (btn === '') return <div key={i} />;
               if (btn === '⌫') return (
                 <button key={i} onClick={handleDelete}
-                  className="h-14 rounded-xl bg-[#0b141a] hover:bg-[#2a3942] active:scale-95 flex items-center justify-center transition-all border border-[#2f3b43]">
+                  className="h-14 rounded-xl bg-[#0b141a]/80 hover:bg-[#2a3942] active:scale-95 flex items-center justify-center transition-all border border-[#2f3b43] shadow-sm">
                   <Delete className="w-5 h-5 text-[#8696a0]" />
                 </button>
               );
               return (
                 <button key={i} onClick={() => handlePress(btn)}
                   disabled={isLocked || status === 'checking' || status === 'success'}
-                  className={`h-14 rounded-xl text-xl font-bold transition-all active:scale-95 border ${
+                  className={`h-14 rounded-xl text-xl font-bold transition-all active:scale-95 border shadow-sm ${
                     isLocked || status === 'checking'
                       ? 'bg-[#0b141a] border-[#1a2530] text-[#2f3b43] cursor-not-allowed'
-                      : 'bg-[#0b141a] border-[#2f3b43] text-white hover:bg-[#2a3942] hover:border-[#3d4f5c] shadow-sm'
+                      : 'bg-[#0b141a] border-[#2f3b43] text-white hover:bg-[#2a3942] hover:border-[#3d4f5c]'
                   }`}>
                   {btn}
                 </button>
@@ -302,15 +309,13 @@ export function AdminLogin({ onAuth }: AdminLoginProps) {
             })}
           </div>
 
-          {/* Show/hide toggle */}
           <button onClick={() => setShowPin(p => !p)}
             className="w-full mt-4 flex items-center justify-center gap-2 text-[#8696a0] hover:text-[#aebac1] text-xs transition-colors py-1.5 rounded-lg hover:bg-white/5">
             {showPin ? <><EyeOff className="w-3.5 h-3.5" /> Hide PIN</> : <><Eye className="w-3.5 h-3.5" /> Show PIN</>}
           </button>
         </div>
 
-        {/* Footer */}
-        <p className="text-[#3d4f5c] text-xs text-center mt-4">🔒 Session expires in 8 hours · Secured</p>
+        <p className="text-[#c6cdd3] text-xs text-center mt-4">🔒 Session expires in 8 hours · Secured</p>
       </div>
 
       <style>{`

@@ -3,6 +3,19 @@ import { CAR_DATABASE } from "../data/cars";
 
 const inventoryString = CAR_DATABASE.map(c => `ID: ${c.id} | ${c.year} ${c.brand} ${c.model} | ₵${c.price.toLocaleString()}`).join('\n');
 
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = 15000): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(input, { ...init, signal: controller.signal });
+    clearTimeout(id);
+    return res;
+  } catch (e) {
+    clearTimeout(id);
+    throw e;
+  }
+}
+
 const SESSION_ID = (() => {
   let id = sessionStorage.getItem('chat_session_id');
   if (!id) {
@@ -112,6 +125,11 @@ export async function sendChatMessage(messages: Message[], newMessage: string, a
     .map(msg => `${msg.sender === 'user' ? 'User' : 'Assistant'}: ${msg.text}`)
     .join('\n');
 
+  const localDemo = "Hey! 👋 Abena here from Drivemond.\n\nLocal demo is running without AI right now.\nTell me your budget and car type, and I’ll suggest options.";
+  if (typeof navigator !== 'undefined' && navigator?.onLine === false) {
+    return localDemo;
+  }
+
   const fullPrompt = `${SYSTEM_INSTRUCTION}
 
 Previous conversation:
@@ -128,62 +146,58 @@ Abena (reply like a real human typing on WhatsApp, keep it short and natural):`;
     const clientKey = (() => {
       try { return localStorage.getItem('OPENROUTER_API_KEY') || ''; } catch { return ''; }
     })();
-    let response: Response;
+    // Attempt chain: FreeLLM → OpenRouter (client) → Backend → Local demo
     if (freeLlmKey) {
-      response = await fetch('https://apifreellm.com/api/v1/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${freeLlmKey}`,
-        },
-        body: JSON.stringify({
-          message: fullPrompt,
-          model: 'apifreellm'
-        })
-      });
-    } else if (clientKey) {
-      response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${clientKey}`,
-          'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
-          'X-Title': 'Abena Car Sales (Client Dev)'
-        },
-        body: JSON.stringify({
-          model: 'openrouter/auto',
-          messages: [{ role: 'user', content: fullPrompt }]
-        })
-      });
-    } else {
-      response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: fullPrompt,
-          session_id: SESSION_ID,
-          user_message: newMessage
-        })
-      });
-    }
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`API error ${response.status}: ${text.substring(0, 200)}`);
-    }
-
-    const data = await response.json();
-    if (freeLlmKey) {
-      const reply = data.response || '';
-      return reply || 'Sorry, I could not generate a response.';
+      try {
+        const response = await fetchWithTimeout('https://apifreellm.com/api/v1/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${freeLlmKey}`,
+          },
+          body: JSON.stringify({ message: fullPrompt, model: 'apifreellm' })
+        }, 15000);
+        if (response.ok) {
+          const data = await response.json();
+          const reply = data.response || '';
+          if (reply) return reply;
+        }
+      } catch {}
     }
     if (clientKey) {
-      const reply = data.choices?.[0]?.message?.content || '';
-      return reply || 'Sorry, I could not generate a response.';
+      try {
+        const response = await fetchWithTimeout('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${clientKey}`,
+            'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
+            'X-Title': 'Abena Car Sales (Client Dev)'
+          },
+          body: JSON.stringify({ model: 'openrouter/auto', messages: [{ role: 'user', content: fullPrompt }] })
+        }, 15000);
+        if (response.ok) {
+          const data = await response.json();
+          const reply = data.choices?.[0]?.message?.content || '';
+          if (reply) return reply;
+        }
+      } catch {}
     }
-    return data.response || 'Sorry, I could not generate a response.';
+    try {
+      const response = await fetchWithTimeout('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: fullPrompt, session_id: SESSION_ID, user_message: newMessage })
+      }, 20000);
+      if (response.ok) {
+        const data = await response.json();
+        const reply = data.response || '';
+        if (reply) return reply;
+      }
+    } catch {}
+    return localDemo;
   } catch (error: any) {
     console.error('LLM API Error:', error);
-    throw new Error(error.message || 'Failed to get response from LLM');
+    return "Hey! 👋 Abena here from Drivemond.\n\nLocal demo is running without AI right now.\nTell me your budget and car type, and I’ll suggest options.";
   }
 }

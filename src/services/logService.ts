@@ -193,7 +193,12 @@ class LogService {
       await fetch('/api/log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventType, data, timestamp: new Date().toISOString() })
+        body: JSON.stringify({
+          eventType,
+          sessionId: this.currentSession?.id || null,
+          data,
+          timestamp: new Date().toISOString()
+        })
       });
     } catch {
       // Silent fail — localStorage is the source of truth

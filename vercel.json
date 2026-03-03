@@ -5,6 +5,18 @@
     "api/chat.js": {
       "memory": 256,
       "maxDuration": 30
+    },
+    "api/log.js": {
+      "memory": 256,
+      "maxDuration": 30
+    },
+    "api/admin.js": {
+      "memory": 256,
+      "maxDuration": 30
+    },
+    "api/email.js": {
+      "memory": 256,
+      "maxDuration": 30
     }
   }
 }

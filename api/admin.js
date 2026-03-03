@@ -1,71 +1,84 @@
+const fs = require('fs');
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-key');
   if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-  const adminKey = req.headers['x-admin-key'];
-  if (adminKey !== process.env.ADMIN_SECRET) {
+  const ADMIN_SECRET = process.env.ADMIN_SECRET || 'drivemond2026';
+  const key = req.headers['x-admin-key'];
+  if (ADMIN_SECRET && key !== ADMIN_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const SUPABASE_URL = process.env.SUPABASE_URL;
-  const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
-  const headers = {
-    'Content-Type': 'application/json',
-    'apikey': SUPABASE_KEY,
-    'Authorization': `Bearer ${SUPABASE_KEY}`
-  };
+  const type = (req.query?.type || req.url.split('type=')[1] || '').toString();
+  const LOG_FILE = '/tmp/abena_events.jsonl';
+  const lines = fs.existsSync(LOG_FILE) ? fs.readFileSync(LOG_FILE, 'utf8').trim().split('\n').filter(Boolean) : [];
+  const raw = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
 
-  try {
-    const { type } = req.query;
+  const events = raw.map((r) => ({
+    session_id: r.sessionId || 'unknown',
+    event_type: r.eventType || 'event',
+    event_data: r.data || null,
+    lead_temperature: r.data?.lead_temperature || (r.eventType === 'booking' ? 'hot' : 'unknown'),
+    intent: r.data?.intent || '',
+    created_at: r.timestamp || new Date().toISOString(),
+  }));
 
-    if (type === 'stats') {
-      const [mRes, eRes] = await Promise.all([
-        fetch(`${SUPABASE_URL}/rest/v1/messages?select=session_id,role,created_at`, { headers }),
-        fetch(`${SUPABASE_URL}/rest/v1/events?select=event_type,lead_temperature,intent,created_at`, { headers })
-      ]);
-      const messages = await mRes.json();
-      const events = await eRes.json();
-      const sessions = [...new Set(messages.map(m => m.session_id))];
-      return res.status(200).json({
-        totalSessions: sessions.length,
-        totalMessages: messages.length,
-        hotLeads: events.filter(e => e.lead_temperature === 'hot').length,
-        warmLeads: events.filter(e => e.lead_temperature === 'warm').length,
-        coldLeads: events.filter(e => e.lead_temperature === 'cold').length,
-        bookings: events.filter(e => e.event_type === 'booking').length
-      });
-    }
-
-    if (type === 'events') {
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/events?order=created_at.desc&limit=200`, { headers });
-      return res.status(200).json(await r.json());
-    }
-
-    if (type === 'conversations') {
-      const r = await fetch(
-        `${SUPABASE_URL}/rest/v1/messages?select=session_id,role,content,metadata,created_at&order=created_at.asc`,
-        { headers }
-      );
-      const messages = await r.json();
-      const grouped = {};
-      messages.forEach(m => {
-        if (!grouped[m.session_id]) grouped[m.session_id] = [];
-        grouped[m.session_id].push(m);
-      });
-      const conversations = Object.entries(grouped).map(([session_id, msgs]) => ({
-        session_id,
-        started_at: msgs[0]?.created_at,
-        last_message_at: msgs[msgs.length - 1]?.created_at,
-        message_count: msgs.length,
-        messages: msgs
-      }));
-      return res.status(200).json(conversations.reverse());
-    }
-
-    return res.status(400).json({ error: 'Invalid type. Use: stats, events, conversations' });
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
+  if (type.includes('events')) {
+    return res.status(200).json(events);
   }
-};
+
+  if (type.includes('conversations')) {
+    const messages = raw.filter(r => r.eventType === 'message' && r.sessionId);
+    const bySession = {};
+    for (const m of messages) {
+      const sid = m.sessionId;
+      if (!bySession[sid]) bySession[sid] = [];
+      bySession[sid].push(m);
+    }
+    const convos = Object.entries(bySession).map(([sid, msgs]) => {
+      msgs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      return {
+        session_id: sid,
+        started_at: msgs[0]?.timestamp || new Date().toISOString(),
+        last_message_at: msgs[msgs.length - 1]?.timestamp || new Date().toISOString(),
+        message_count: msgs.length,
+        messages: msgs.map(mm => ({
+          session_id: sid,
+          role: mm.data?.sender === 'user' ? 'user' : 'assistant',
+          content: mm.data?.text || '',
+          metadata: null,
+          created_at: mm.timestamp || new Date().toISOString(),
+        })),
+      };
+    });
+    return res.status(200).json(convos);
+  }
+
+  if (type.includes('stats')) {
+    const convosRes = await module.exports({ ...req, url: '/api/admin?type=conversations' }, {
+      setHeader: () => {},
+      status: () => ({ json: (b) => b }),
+      json: (b) => b,
+      end: () => {},
+    });
+    const conversations = Array.isArray(convosRes) ? convosRes : [];
+    const hotLeads = events.filter(e => e.lead_temperature === 'hot').length;
+    const warmLeads = events.filter(e => e.lead_temperature === 'warm').length;
+    const coldLeads = events.filter(e => e.lead_temperature === 'cold').length;
+    const bookings = events.filter(e => e.event_type === 'booking').length;
+    const totalMessages = conversations.reduce((acc, c) => acc + c.message_count, 0);
+    const out = {
+      totalSessions: conversations.length,
+      totalMessages,
+      hotLeads, warmLeads, coldLeads,
+      bookings,
+    };
+    return res.status(200).json(out);
+  }
+
+  return res.status(400).json({ error: 'Bad request' });
+}

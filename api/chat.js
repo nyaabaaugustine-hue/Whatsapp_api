@@ -51,12 +51,15 @@ module.exports = async function handler(req, res) {
         })
       });
     } else {
+      const xfHost = req.headers['x-forwarded-host'] || req.headers.host || '';
+      const xfProto = req.headers['x-forwarded-proto'] || 'https';
+      const siteUrl = process.env.OPENROUTER_SITE_URL || (xfHost ? `${xfProto}://${Array.isArray(xfHost) ? xfHost[0] : xfHost}` : 'https://localhost:3000');
       response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${OPENROUTER_KEY}`,
-          'HTTP-Referer': 'https://salescoms.vercel.app',
+          'HTTP-Referer': siteUrl,
           'X-Title': 'Abena Car Sales'
         },
         body: JSON.stringify({

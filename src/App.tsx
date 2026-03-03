@@ -4,6 +4,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import { X, MessageCircle, BadgeCheck } from 'lucide-react';
 import { CAR_DATABASE } from './data/cars';
 import { BookingModal } from './components/BookingModal';
+import { InstallPrompt } from './components/InstallPrompt';
 
 const WA_ICON = (
   <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor">
@@ -57,12 +58,12 @@ export default function App() {
             <span className="text-xs text-white bg-[#800020] px-2 py-0.5 rounded-full font-black">Ghana</span>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => { document.getElementById('inventory')?.scrollIntoView({ behavior: 'smooth' }); }}
-              className="border border-[#800020] text-[#e9edef] px-4 py-2 rounded-full text-sm font-bold hover:bg-[#fbe9ee]"
+            <a
+              href="tel:+233504512884"
+              className="text-[#e9edef] px-4 py-2 rounded-[7%] text-sm font-bold ring-2 ring-[#FFD700] ring-offset-2 ring-offset-[#0f172a] hover:bg-[#13202a] transition"
             >
-              Browse Inventory
-            </button>
+              Call Developers
+            </a>
           </div>
         </div>
       </header>
@@ -280,6 +281,7 @@ export default function App() {
           to   { opacity: 1; transform: translateY(0); }
         }
       `}</style>
+      <InstallPrompt />
     </div>
   );
 }

@@ -22,6 +22,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
   const [greetingDone, setGreetingDone] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [netOnline, setNetOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [isCalling, setIsCalling] = useState(false);
   const [autoRead, setAutoRead] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
@@ -89,13 +90,27 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       : m));
   }, [greetingDone]);
   useEffect(() => {
-    // Disable auto-scroll to keep background visually stable
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, isTyping]);
+
+  useEffect(() => {
+    const on = () => setNetOnline(true);
+    const off = () => setNetOnline(false);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', off);
+    return () => {
+      window.removeEventListener('online', on);
+      window.removeEventListener('offline', off);
+    };
+  }, []);
 
   const handleLeadSubmit = (name: string, phone: string) => {
     setLeadInfo({ name, phone });
     setShowLeadModal(false);
-    // Log the lead
+    if (!logService.getCurrentSession()) {
+      logService.startNewSession();
+    }
+    logService.updateUserInfo({ name, phone });
     logService.addLog({
       intent: 'lead_capture',
       lead_temperature: 'warm',
@@ -109,11 +124,9 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     ));
   };
 
-  const handleLeadSkip = () => {
-    setShowLeadModal(false);
-  };
+  
 
-  const handleBookingConfirm = (carId: string, carName: string, date: string, time: string) => {
+  const handleBookingConfirm = async (carId: string, carName: string, date: string, time: string) => {
     setBookingModal(null);
     setShowHandoff(true);
     const booking = logService.addBooking({
@@ -129,17 +142,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     };
     setMessages(prev => [...prev, confirmMsg]);
 
-    // 🔔 Notify owner via WhatsApp
-    const ownerMsg = encodeURIComponent(
-      `🚗 *New Booking Alert!*\n\n` +
-      `📅 Date: ${date} at ${time}\n` +
-      `🚘 Vehicle: ${carName}\n` +
-      `👤 Customer: ${leadInfo?.name || 'Unknown'}\n` +
-      `📞 Phone: ${leadInfo?.phone || 'Not provided'}\n` +
-      `🔖 Booking ID: ${booking.id}\n\n` +
-      `Please follow up with the customer.`
-    );
-    window.open(`https://wa.me/233541988383?text=${ownerMsg}`, '_blank');
+    await finalizeSession();
   };
 
   const openWhatsApp = () => {
@@ -170,7 +173,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     await fetch('/api/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: 'josemorgan120@gmail.com', subject: `Chat Transcript - ${leadInfo?.name || 'Customer'}`, html })
+      body: JSON.stringify({ to: 'josemorgan120@gmal.com', subject: `Chat Transcript - ${leadInfo?.name || 'Customer'}`, html })
     });
     alert('Transcript sent');
   };
@@ -470,9 +473,15 @@ export function ChatArea({ onClose }: ChatAreaProps) {
         };
         setMessages(prev => [...prev, aiMsg]);
       } else {
+        const msg = error instanceof Error ? error.message : 'Please try again.';
+        const is401 = /401/.test(String(msg));
+        const helpful =
+          is401
+            ? "Authorization error (401).\nIf you added an API key, verify it’s valid and allowed for this site.\nQuick fix: clear any OPENROUTER_API_KEY/APIFREELLM_API_KEY from your browser storage, or add a valid key in .env as VITE_OPENROUTER_API_KEY or VITE_APIFREELLM_API_KEY.\nThen refresh and try again."
+            : `Sorry, there was an error. ${msg}`;
         setMessages(prev => [...prev, {
           id: (Date.now() + 1).toString(),
-          text: `Sorry, there was an error. ${error instanceof Error ? error.message : 'Please try again.'}`,
+          text: helpful,
           sender: 'ai', timestamp: new Date()
         }]);
       }
@@ -559,7 +568,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
 
       {/* Lead Capture Modal */}
       {showLeadModal && (
-        <LeadCaptureModal onSubmit={handleLeadSubmit} onSkip={handleLeadSkip} />
+        <LeadCaptureModal onSubmit={handleLeadSubmit} />
       )}
 
       {/* Booking Modal */}
@@ -586,6 +595,10 @@ export function ChatArea({ onClose }: ChatAreaProps) {
               Abena{leadInfo ? ` · ${leadInfo.name}` : ''}
               <span className="ml-2 inline-block align-middle text-[10px] font-black text-[#00a884] bg-[#003d32] px-2 py-0.5 rounded-full border border-[#05846e]">
                 Modern UI
+              </span>
+              <span className={`ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-black ${netOnline ? 'text-[#25D366] bg-[#003d32] border-[#05846e]' : 'text-[#8696a0] bg-[#2a3942] border-[#3d4f5c]'}`}>
+                <span className={`inline-block w-1.5 h-1.5 rounded-full ${netOnline ? 'bg-[#25D366]' : 'bg-[#8696a0]'}`} />
+                {netOnline ? 'Online' : 'Offline'}
               </span>
             </h2>
             <p className={cn("text-[11px] mt-0.5 transition-colors truncate", isTyping ? "text-[#00a884] font-medium" : "text-[#8696a0]")}>
@@ -674,7 +687,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4 z-10 min-h-0">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 z-10 min-h-0 custom-scroll">
         {/* Payment Calculator (inline) */}
         {showCalculator && (
           <PaymentCalculator onClose={() => setShowCalculator(false)} />
@@ -735,6 +748,31 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       <div className="z-10 flex-shrink-0">
         <MessageInput onSendMessage={handleSendMessage} isLoading={isLoading} replyingTo={replyingTo} onClearReply={() => setReplyingTo(null)} presetText={presetText} />
       </div>
+      <style>{`
+        .custom-scroll {
+          scroll-behavior: smooth;
+          scrollbar-gutter: stable;
+        }
+        .custom-scroll::-webkit-scrollbar {
+          width: 10px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+          background: #0b141a;
+          border-radius: 8px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+          background: linear-gradient(180deg, #2f3b43, #3d4f5c);
+          border-radius: 8px;
+          border: 2px solid #0b141a;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(180deg, #3d4f5c, #4b6473);
+        }
+        .custom-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: #3d4f5c #0b141a;
+        }
+      `}</style>
     </div>
   );
 }
