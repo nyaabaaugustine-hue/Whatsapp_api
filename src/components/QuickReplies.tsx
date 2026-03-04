@@ -63,7 +63,7 @@ export function QuickReplies({ replies, onSelect }: QuickRepliesProps) {
         <button
           key={reply.id}
           onClick={() => onSelect(reply.value, reply.text)}
-          className="inline-flex items-center gap-2 bg-[#0b141a] hover:bg-[#0f2d25] text-[#dff8f0] px-3 py-1.5 rounded-[6%] text-xs font-semibold transition-colors border border-[#25D366] shadow-sm"
+          className="inline-flex items-center gap-2 bg-[#0b141a] hover:bg-[#0f2d25] text-[#dff8f0] px-3 py-1.5 rounded-[6%] text-xs font-semibold transition-colors border border-[#25D366] shadow-sm scale-[1.5]"
         >
           <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#25D366] text-[#0b141a]">
             {iconFor(reply)}
