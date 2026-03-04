@@ -1,7 +1,12 @@
 @import "tailwindcss";
 
-/* Reduce all buttons by 35% (visual size) */
-button {
-  transform: scale(0.65);
-  transform-origin: center;
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: #0f172a;
+  color: #e9edef;
+  overflow-x: hidden;
 }

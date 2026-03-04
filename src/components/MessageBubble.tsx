@@ -24,10 +24,10 @@ interface MessageBubbleProps {
 // â”€â”€ Share car via WhatsApp â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function shareCarViaWhatsApp(car: any) {
   const text = encodeURIComponent(
-    `ðŸš— Check out this car at Drivemond!\n\n` +
+    `🚗 Check out this car at Drivemond!\n\n` +
     `*${car.year} ${car.brand} ${car.model}*\n` +
     `Price: GHS ${car.price.toLocaleString()}\n` +
-    `âš™ï¸ ${(car as any).transmission || 'Auto'} Â· â›½ ${(car as any).fuel || 'Petrol'} Â· ðŸ“ ${(car as any).mileage || 'N/A'}\n\n` +
+    `⚙️ ${(car as any).transmission || 'Auto'} · ⛽ ${(car as any).fuel || 'Petrol'} · 📍 ${(car as any).mileage || 'N/A'}\n\n` +
     `Interested? Chat with Drivemond: https://wa.me/233504512884`
   );
   window.open(`https://wa.me/?text=${text}`, '_blank');
@@ -82,7 +82,7 @@ function CarCard({ url, onBook }: { url: string; onBook?: (id: string, name: str
             </span>
             {(car as any).color && (
               <span className="absolute top-2 right-2 bg-black/70 backdrop-blur-md text-white text-[10px] px-2 py-0.5 rounded-full border border-white/10">
-                ðŸŽ¨ {(car as any).color}
+                🎨 {(car as any).color}
               </span>
             )}
           </>
@@ -114,17 +114,17 @@ function CarCard({ url, onBook }: { url: string; onBook?: (id: string, name: str
           <div className="flex gap-1.5 mb-3 flex-wrap">
             {(car as any).transmission && (
               <span className="text-[10px] bg-[#2a3942] text-[#aebac1] px-2 py-1 rounded-full border border-[#3d4f5c]/50">
-                âš™ï¸ {(car as any).transmission}
+                ⚙️ {(car as any).transmission}
               </span>
             )}
             {(car as any).fuel && (
               <span className="text-[10px] bg-[#2a3942] text-[#aebac1] px-2 py-1 rounded-full border border-[#3d4f5c]/50">
-                â›½ {(car as any).fuel}
+                ⛽ {(car as any).fuel}
               </span>
             )}
             {(car as any).mileage && (
               <span className="text-[10px] bg-[#2a3942] text-[#aebac1] px-2 py-1 rounded-full border border-[#3d4f5c]/50">
-                ðŸ“ {(car as any).mileage}
+                📍 {(car as any).mileage}
               </span>
             )}
           </div>
@@ -278,10 +278,10 @@ export function MessageBubble({ message, onConfirmBooking, onReact, onReply, onE
                         <a
                           href="https://wa.me/233504512884"
                           target="_blank" rel="noopener noreferrer"
-                          className="flex items-center justify-center gap-2 border-2 border-[#25D366] text-[#25D366] bg-transparent hover:bg-[#25D366]/10 active:scale-[0.97] py-1.5 px-2 rounded-[6%] text-[12px] font-bold transition-all shadow-md shadow-[#25D366]/10"
+                          className="flex items-center justify-center gap-2 border-2 border-[#25D366] text-[#FFD700] bg-transparent hover:bg-[#25D366]/10 active:scale-[0.97] py-1.5 px-2 rounded-[6%] text-[12px] font-bold transition-all shadow-md shadow-[#25D366]/10"
                         >
                           {WA_ICON}
-                          Chat with Owner on WhatsApp
+                          Transfer me to Purchase Officer
                         </a>
                       )}
                       {message.bookingProposal && !isConfirmed && (
@@ -290,7 +290,7 @@ export function MessageBubble({ message, onConfirmBooking, onReact, onReply, onE
                           className="flex items-center justify-center gap-2 bg-[#00a884] hover:bg-[#008f72] active:scale-[0.97] text-white py-1.5 px-2 rounded-[6%] text-[12px] font-bold transition-all shadow-md"
                         >
                           <CalendarCheck className="w-4 h-4" />
-                          Confirm Booking Â· {message.bookingProposal.carName}
+                          Confirm Booking · {message.bookingProposal.carName}
                         </button>
                       )}
                     </div>
@@ -338,7 +338,7 @@ export function MessageBubble({ message, onConfirmBooking, onReact, onReply, onE
 
           {showReactions && (
             <div className="mt-1 flex gap-1">
-              {['ðŸ‘','â¤ï¸','ðŸ”¥','ðŸ˜Š','ðŸ¤','ðŸ’°'].map(e => (
+              {['👍','❤️','🔥','😊','🤝','💰'].map(e => (
                 <button key={e} onClick={() => { onReact?.(message.id, e); setShowReactions(false); }} className="text-[13px] px-1 py-0.5 rounded-[6%] bg-[#2a3942] text-[#e9edef] border border-[#3d4f5c] hover:bg-[#3b4a54]">
                   {e}
                 </button>

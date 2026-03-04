@@ -258,7 +258,7 @@ export default function App() {
           aria-label="Open Chat"
           className="
             fixed bottom-6 right-6 z-[998]
-            w-16 h-16 rounded-full
+            w-[73.6px] h-[73.6px] rounded-full
             bg-[#25D366] hover:bg-[#20bd5a]
             flex items-center justify-center
             shadow-2xl ring-2 ring-[#FFD700] ring-offset-2 ring-offset-[#0f172a]
@@ -282,7 +282,7 @@ export default function App() {
         className="
           hidden sm:flex
           fixed bottom-6 right-6 z-[1000]
-          w-16 h-16 rounded-full
+          w-[73.6px] h-[73.6px] rounded-full
           bg-[#25D366] hover:bg-[#20bd5a]
           items-center justify-center
           shadow-2xl ring-2 ring-[#FFD700] ring-offset-2 ring-offset-[#0f172a]

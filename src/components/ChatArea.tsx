@@ -186,7 +186,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     setMessages(prev => {
       const next = prev.map(m =>
         m.id === 'greeting'
-          ? { ...m, text: m.text.replace('Hi! ðŸ‘‹ Iâ€™m Abena', `Hi ${name}! ðŸ‘‹ Iâ€™m Abena`) }
+          ? { ...m, text: m.text.replace('Hi! 👋 I’m Abena', `Hi ${name}! 👋 I’m Abena`) }
           : m
       );
       greeted = next.some(m => m.id === 'greeting');
@@ -195,7 +195,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     if (!greeted) {
       const msg: Message = {
         id: (Date.now() + 1).toString(),
-        text: `Hi ${name}! ðŸ‘‹ Iâ€™m Abena.\nWhat budget range are you working with?`,
+        text: `Hi ${name}! 👋 I’m Abena.\nWhat budget range are you working with?`,
         sender: 'ai',
         timestamp: new Date(),
       };
@@ -736,7 +736,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       } else {
         lines.push("Do you want photos or 1-2 more options?");
         quickReplies = [
-          { id: 'show_photos', text: 'Show Photos', value: 'show_photos' },
+          { id: 'show_photos', text: 'Show Cars', value: 'show_photos' },
           { id: 'more_opts', text: 'More Options', value: 'more_options' }
         ];
       }
@@ -877,7 +877,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
   const typeOut = async (text: string, imgs?: string[], opts?: { showLocation?: boolean; quickReplies?: QuickReply[] }) => {
     setIsTyping(true);
     const id = (Date.now() + Math.random()).toString();
-    setMessages(prev => [...prev, { id, text: '', sender: 'ai', timestamp: new Date(), aiImages: imgs, showLocation: opts?.showLocation, quickReplies: opts?.quickReplies }]);
+    setMessages(prev => [...prev, { id, text: '', sender: 'ai', timestamp: new Date(), aiImages: imgs, showLocation: opts?.showLocation }]);
     await new Promise(r => setTimeout(r, 700));
     const words = text.split(' ');
     let current = '';
@@ -894,6 +894,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     }
     setIsTyping(false);
     const finalMsg: Message = { id, text, sender: 'ai', timestamp: new Date(), aiImages: imgs, showLocation: opts?.showLocation, quickReplies: opts?.quickReplies };
+    setMessages(prev => prev.map(m => m.id === id ? { ...m, quickReplies: opts?.quickReplies } : m));
     logService.addMessageToSession(finalMsg);
     lastAiActivityRef.current = Date.now();
     scheduleFollowUp();
@@ -1127,7 +1128,6 @@ export function ChatArea({ onClose }: ChatAreaProps) {
         id: aiMsgId, text: '', sender: 'ai', timestamp: new Date(),
         aiImages: aiImages.length > 0 ? aiImages : undefined,
         bookingProposal,
-        quickReplies: localQuickReplies,
         showLocation: isLocationQueryEarly
       };
       setMessages(prev => [...prev, aiMsg]);
@@ -1156,6 +1156,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
         quickReplies: localQuickReplies,
         showLocation: isLocationQueryEarly
       };
+      setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, quickReplies: localQuickReplies } : m));
 
       // Keep conversation human â€” no extra quick replies after the first choice
 
@@ -1179,7 +1180,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
         const imgs = CAR_DATABASE.map(c => (c as any).real_image || c.image_url);
         const aiMsg: Message = {
           id: (Date.now() + 1).toString(),
-          text: "Network is acting up.\nSharing our current lineup now.\nPick what catches your eye ðŸ‘€",
+          text: "Network is acting up.\nSharing our current lineup now.\nPick what catches your eye 👀",
           sender: 'ai',
           timestamp: new Date(),
           aiImages: imgs
@@ -1190,7 +1191,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
         const is401 = /401/.test(String(msg));
         const helpful =
           is401
-            ? "Authorization error (401).\nIf you added an API key, verify itâ€™s valid and allowed for this site.\nQuick fix: clear any OPENROUTER_API_KEY/APIFREELLM_API_KEY from your browser storage, or add a valid key in .env as VITE_OPENROUTER_API_KEY or VITE_APIFREELLM_API_KEY.\nThen refresh and try again."
+            ? "Authorization error (401).\nIf you added an API key, verify it’s valid and allowed for this site.\nQuick fix: clear any OPENROUTER_API_KEY/APIFREELLM_API_KEY from your browser storage, or add a valid key in .env as VITE_OPENROUTER_API_KEY or VITE_APIFREELLM_API_KEY.\nThen refresh and try again."
             : `Sorry, there was an error. ${msg}`;
         setMessages(prev => [...prev, {
           id: (Date.now() + 1).toString(),
@@ -1246,12 +1247,12 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     }
     if (value === 'find_car') {
       setFlow({ stage: 'idle' });
-      await typeOut("Tell me your budget range and the type you want. Iâ€™ll suggest the best fit.");
+      await typeOut("Tell me your budget range and the type you want. I’ll suggest the best fit.");
       return;
     }
     if (value === 'view_inventory') {
       const imgs = CAR_DATABASE.map(c => ((c as any).real_image || c.image_url));
-      await typeOut('Hereâ€™s our current lineup. Which one catches your eye? ðŸ‘€', imgs);
+      await typeOut('Here’s our current lineup. Which one catches your eye? 👀', imgs);
       return;
     }
     if (value === 'book_viewing') {
@@ -1308,15 +1309,15 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       return;
     }
     if (value === 'location') {
-      await typeOut('ðŸ“ East Legon, Accra.\nAsk me for directions or tap the map.', undefined, { showLocation: true });
+      await typeOut('📍 East Legon, Accra.\nAsk me for directions or tap the map.', undefined, { showLocation: true });
       return;
     }
     if (value === 'directions' || value === 'send_pin') {
-      await typeOut('ðŸ“ East Legon, Accra.\nHere is our location on the map.', undefined, { showLocation: true });
+      await typeOut('📍 East Legon, Accra.\nHere is our location on the map.', undefined, { showLocation: true });
       return;
     }
     if (value === 'talk_sales') {
-      await typeOut('Speak directly with our sales manager ðŸ“ž +233504512884 â€” quick and easy.');
+      await typeOut('Speak directly with our sales manager 📞 +233504512884 — quick and easy.');
       setShowHandoff(true);
       return;
     }
@@ -1588,14 +1589,14 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       {showHandoff && (
         <div className="flex-shrink-0 px-3 py-2.5 bg-[#0d2b1f] border-t border-[#1a3a2a] flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[#4ade80] text-[12px] font-bold leading-tight">ðŸš— Take the Next Step</p>
+            <p className="text-[#4ade80] text-[12px] font-bold leading-tight">🚗 Take the Next Step</p>
             <p className="text-[#8696a0] text-[10px] mt-0.5 leading-tight">Connect with a Sales Specialist to finalise details</p>
           </div>
           <a
             href="tel:+233504512884"
-            className="flex-shrink-0 bg-[#0b141a] border-2 border-[#25D366] text-[#25D366] hover:bg-[#25D366]/10 active:scale-95 text-[11px] font-black px-3 py-2 rounded-xl transition-all whitespace-nowrap shadow-md"
+            className="flex-shrink-0 bg-[#0b141a] border-2 border-[#25D366] text-[#FFD700] hover:bg-[#25D366]/10 active:scale-95 text-[11px] font-black px-3 py-2 rounded-xl transition-all whitespace-nowrap shadow-md"
           >
-            Speak to Sales â†’
+            Speak to Sales →
           </a>
         </div>
       )}
