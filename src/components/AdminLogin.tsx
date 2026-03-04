@@ -211,17 +211,13 @@ export function AdminLogin({ onAuth }: AdminLoginProps) {
 
   return (
     <div className="relative min-h-screen bg-[#0b141a] flex items-center justify-center p-4 select-none overflow-hidden">
-      <div
-        className="pointer-events-none absolute inset-0 -z-10"
-        style={{
-          backgroundImage: `url(https://res.cloudinary.com/dx1nrew3h/image/upload/v1772512677/aaaaa_w3eapq.jpg)`,
-          backgroundRepeat: 'no-repeat',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          filter: 'saturate(0.9) brightness(0.8)',
-        }}
+      <img
+        src="https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772594297/y10n_fpni_211014_d9esey.jpg"
+        alt=""
+        className="pointer-events-none absolute inset-0 -z-10 h-full w-full object-cover"
+        referrerPolicy="no-referrer"
       />
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-[#0b141a]/70 via-[#0b141a]/80 to-[#0b141a]" />
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-black/25" />
       {/* Honeypot — hidden, should never be filled by humans */}
       <input
         type="text"

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { ChatArea } from './components/ChatArea';
 import AdminDashboard from './pages/AdminDashboard';
-import { X, MessageCircle, BadgeCheck } from 'lucide-react';
+import InventoryPage from './pages/InventoryPage';
+import { X, MessageCircle, BadgeCheck, ShieldCheck, Fuel, Truck } from 'lucide-react';
 import { CAR_DATABASE } from './data/cars';
 import { BookingModal } from './components/BookingModal';
 import { InstallPrompt } from './components/InstallPrompt';
@@ -12,9 +13,18 @@ const WA_ICON = (
   </svg>
 );
 
+const formatPriceShort = (n: number) => {
+  if (n >= 1_000_000) {
+    const v = (n / 1_000_000).toFixed(1).replace(/\.0$/, '');
+    return `${v}M`;
+  }
+  if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
+  return `${n}`;
+};
+
 export default function App() {
   const [isOpen, setIsOpen] = useState(false);
-  const [view, setView] = useState<'home' | 'admin'>('home');
+  const [view, setView] = useState<'home' | 'admin' | 'inventory'>('home');
   const featured = CAR_DATABASE.slice(0, 3);
   const listing = CAR_DATABASE.length > 6 ? CAR_DATABASE.slice(3, 9) : CAR_DATABASE.slice(0, 6);
   const [bookingModal, setBookingModal] = useState<{ carId: string; carName: string } | null>(null);
@@ -38,6 +48,7 @@ export default function App() {
     const handleHashChange = () => {
       const h = window.location.hash;
       if (h === '#admin') setView('admin');
+      else if (h === '#inventory') setView('inventory');
       else setView('home');
     };
     window.addEventListener('hashchange', handleHashChange);
@@ -47,6 +58,9 @@ export default function App() {
 
   if (view === 'admin') {
     return <AdminDashboard />;
+  }
+  if (view === 'inventory') {
+    return <InventoryPage onBack={() => { window.location.hash = ''; }} />;
   }
 
   return (
@@ -82,18 +96,24 @@ export default function App() {
                 >
                   Browse Cars
                 </button>
+                <button
+                  onClick={() => { window.location.hash = '#inventory'; }}
+                  className="border border-[#2f3b43] text-[#e9edef] px-6 py-3 rounded-xl font-black hover:bg-[#13202a]"
+                >
+                  View All Inventory
+                </button>
               </div>
               <div className="mt-8 grid grid-cols-3 gap-3 max-w-md">
-                <div className="bg-[#101a21] border border-[#1e293b] rounded-xl p-4 text-center">
-                  <p className="text-2xl">🛡</p>
+                <div className="bg-[#101a21] border border-[#FFD700] rounded-xl p-4 text-center shadow-[0_0_0_1px_rgba(255,215,0,0.25)]">
+                  <ShieldCheck className="w-6 h-6 text-[#e9edef] mx-auto" />
                   <p className="text-[#aebac1] text-xs font-bold mt-1">Verified History</p>
                 </div>
-                <div className="bg-[#101a21] border border-[#1e293b] rounded-xl p-4 text-center">
-                  <p className="text-2xl">⛽</p>
+                <div className="bg-[#101a21] border border-[#FFD700] rounded-xl p-4 text-center shadow-[0_0_0_1px_rgba(255,215,0,0.25)]">
+                  <Fuel className="w-6 h-6 text-[#e9edef] mx-auto" />
                   <p className="text-[#aebac1] text-xs font-bold mt-1">Fuel Efficient</p>
                 </div>
-                <div className="bg-[#101a21] border border-[#1e293b] rounded-xl p-4 text-center">
-                  <p className="text-2xl">🚚</p>
+                <div className="bg-[#101a21] border border-[#FFD700] rounded-xl p-4 text-center shadow-[0_0_0_1px_rgba(255,215,0,0.25)]">
+                  <Truck className="w-6 h-6 text-[#e9edef] mx-auto" />
                   <p className="text-[#aebac1] text-xs font-bold mt-1">Nationwide Delivery</p>
                 </div>
               </div>
@@ -109,7 +129,7 @@ export default function App() {
       {CAR_DATABASE.length > 6 && (
         <section id="inventory" className="max-w-6xl mx-auto px-5 py-6">
           <div className="text-white font-black text-2xl mb-3">Featured Inventory</div>
-          <div className="overflow-x-auto no-scrollbar">
+          <div className="overflow-x-hidden">
             <div className="flex gap-4 snap-x snap-mandatory">
               {featured.map(car => {
                 const img = (car as any).real_image || car.image_url;
@@ -117,13 +137,18 @@ export default function App() {
                   <div key={`carousel-${car.id}`} className="snap-center flex-shrink-0 w-[320px] sm:w-[360px] rounded-2xl overflow-hidden bg-[#101a21] border border-[#1e293b] shadow-sm">
                     <div className="relative">
                       <img src={img} alt={`${car.brand} ${car.model}`} className="w-full h-40 object-cover" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
                       <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between">
-                        <div>
-                          <p className="text-white font-black text-[14px] drop-shadow">{car.brand} {car.model}</p>
-                          <p className="text-white/70 text-[10px]">{car.year}</p>
+                        <div className="bg-black/70 backdrop-blur-[1px] px-2 py-1 rounded-md">
+                          <p className="text-[#EDEDED] font-black text-[14px] drop-shadow-sm">{car.brand} {car.model}</p>
+                          <p className="text-[#EDEDED]/90 text-[10px]">{car.year}</p>
                         </div>
-                        <p className="text-[#e9edef] font-black text-[14px] drop-shadow">₵{car.price.toLocaleString()}</p>
+                        <p
+                          title={`GHS ${car.price.toLocaleString()}`}
+                          className="bg-black/70 text-[#EDEDED] font-black text-[14px] drop-shadow-sm px-2 py-1 rounded-md"
+                        >
+                          GHS {formatPriceShort(car.price)}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -143,7 +168,7 @@ export default function App() {
               <div key={car.id} className="group rounded-2xl overflow-hidden bg-[#101a21] border border-[#1e293b] shadow-sm hover:shadow-xl transition-all">
                 <div className="relative">
                   <img src={img} alt={`${car.brand} ${car.model}`} className="w-full h-48 object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent opacity-90" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-95" />
                   <div className="absolute top-3 left-3 text-white text-xs px-2 py-1 rounded-full bg-black/50 border border-white/20">
                     {car.year}
                   </div>
@@ -151,20 +176,25 @@ export default function App() {
                     <BadgeCheck className="w-3 h-3" /> Available
                   </div>
                   <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
-                    <div>
-                      <p className="text-white font-black text-[16px] drop-shadow">{car.brand} {car.model}</p>
-                      <p className="text-white/80 text-[11px]">Clean title · Verified</p>
+                    <div className="bg-black/70 backdrop-blur-[1px] px-2 py-1 rounded-md">
+                      <p className="text-[#EDEDED] font-black text-[16px] drop-shadow-sm">{car.brand} {car.model}</p>
+                      <p className="text-[#EDEDED]/90 text-[11px]">Clean title - Verified</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[#e9edef] font-black text-[18px] drop-shadow">₵{car.price.toLocaleString()}</p>
+                      <p
+                        title={`GHS ${car.price.toLocaleString()}`}
+                        className="bg-black/70 text-[#EDEDED] font-black text-[18px] drop-shadow-sm px-2 py-1 rounded-md"
+                      >
+                        GHS {formatPriceShort(car.price)}
+                      </p>
                     </div>
                   </div>
                 </div>
                 <div className="p-4">
                   <div className="flex flex-wrap gap-1.5 mb-3">
-                    {(car as any).transmission && <span className="text-[11px] px-2 py-1 rounded-full bg-[#2a3942] text-[#aebac1] border border-[#3d4f5c]">⚙ {(car as any).transmission}</span>}
-                    {(car as any).fuel && <span className="text-[11px] px-2 py-1 rounded-full bg-[#2a3942] text-[#aebac1] border border-[#3d4f5c]">⛽ {(car as any).fuel}</span>}
-                    {(car as any).mileage && <span className="text-[11px] px-2 py-1 rounded-full bg-[#2a3942] text-[#aebac1] border border-[#3d4f5c]">📍 {(car as any).mileage}</span>}
+                    {(car as any).transmission && <span className="text-[11px] px-2 py-1 rounded-full bg-[#2a3942] text-[#aebac1] border border-[#3d4f5c]">Transmission: {(car as any).transmission}</span>}
+                    {(car as any).fuel && <span className="text-[11px] px-2 py-1 rounded-full bg-[#2a3942] text-[#aebac1] border border-[#3d4f5c]">Fuel: {(car as any).fuel}</span>}
+                    {(car as any).mileage && <span className="text-[11px] px-2 py-1 rounded-full bg-[#2a3942] text-[#aebac1] border border-[#3d4f5c]">Mileage: {(car as any).mileage}</span>}
                   </div>
                   <div className="grid grid-cols-1 gap-2" />
                 </div>
@@ -192,47 +222,36 @@ export default function App() {
 
 
 
-      {/* ══════════════════════════════════════════════════
-          CHAT OVERLAY
-          • Mobile  → fixed inset-0  (TRUE full screen)
-          • Desktop → floating panel bottom-right
-      ══════════════════════════════════════════════════ */}
-      {isOpen && (
-        <>
-          {/* ── MOBILE full-screen chat ── */}
-          <div
-            className="
-              fixed inset-0 z-[999]
-              flex flex-col
-              bg-[#0b141a]
-              sm:hidden
-            "
-            style={{ height: '100dvh', width: '100vw' }}
-          >
-            <ChatArea onClose={() => setIsOpen(false)} />
-          </div>
+      {/* CHAT OVERLAY
+          Mobile -> fixed inset-0 (true full screen)
+          Desktop -> floating panel bottom-right
+      */}
+      <>
+        {/* Mobile full-screen chat */}
+        <div
+          className={`fixed inset-0 z-[999] flex flex-col bg-[#0b141a] sm:hidden transition-all duration-300 ease-out ${
+            isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6 pointer-events-none'
+          }`}
+          style={{ height: '100dvh', width: '100vw' }}
+        >
+          <ChatArea onClose={() => setIsOpen(false)} />
+        </div>
 
-          {/* ── DESKTOP floating panel ── */}
-          <div
-            className="
-              hidden sm:flex
-              fixed bottom-24 right-6 z-[999]
-              w-[416px]
-              flex-col
-              bg-[#0b141a] rounded-2xl shadow-2xl overflow-hidden
-              border border-[#2f3b43]
-            "
-            style={{ animation: 'slideUp 0.25s ease', height: 'min(673px, calc(100vh - 120px))' }}
-          >
-            <ChatArea onClose={() => setIsOpen(false)} />
-          </div>
-        </>
-      )}
+        {/* Desktop floating panel */}
+        <div
+          className={`hidden sm:flex fixed bottom-24 right-6 z-[999] w-[416px] flex-col bg-[#0b141a] rounded-2xl shadow-2xl overflow-hidden border border-[#2f3b43] transition-all duration-300 ease-out ${
+            isOpen ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto' : 'opacity-0 translate-y-6 scale-[0.98] pointer-events-none'
+          }`}
+          style={{ height: 'min(673px, calc(100vh - 120px))' }}
+        >
+          <ChatArea onClose={() => setIsOpen(false)} />
+        </div>
+      </>
 
-      {/* ══════════════════════════════
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
           FLOATING ACTION BUTTON
           Shown on BOTH mobile & desktop when chat is closed
-      ══════════════════════════════ */}
+      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
@@ -242,7 +261,7 @@ export default function App() {
             w-16 h-16 rounded-full
             bg-[#25D366] hover:bg-[#20bd5a]
             flex items-center justify-center
-            shadow-2xl
+            shadow-2xl ring-2 ring-[#FFD700] ring-offset-2 ring-offset-[#0f172a]
             transition-transform active:scale-95 hover:scale-105
           "
         >
@@ -266,7 +285,7 @@ export default function App() {
           w-16 h-16 rounded-full
           bg-[#25D366] hover:bg-[#20bd5a]
           items-center justify-center
-          shadow-2xl
+          shadow-2xl ring-2 ring-[#FFD700] ring-offset-2 ring-offset-[#0f172a]
           transition-transform active:scale-95 hover:scale-105
           sm:[display:flex]
         "
@@ -275,13 +294,9 @@ export default function App() {
         <X className="w-7 h-7 text-white" />
       </button>
 
-      <style>{`
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
+      <style>{``}</style>
       <InstallPrompt />
     </div>
   );
 }
+

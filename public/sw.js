@@ -19,6 +19,17 @@ self.addEventListener('activate', (e) => {
   );
 });
 
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientsArr) => {
+      const client = clientsArr.find((c) => c.url.includes(self.location.origin));
+      if (client && 'focus' in client) return client.focus();
+      return self.clients.openWindow('/');
+    })
+  );
+});
+
 function isNavigation(req) {
   return req.mode === 'navigate' || (req.method === 'GET' && req.headers.get('accept')?.includes('text/html'));
 }
@@ -30,7 +41,7 @@ self.addEventListener('fetch', (e) => {
   // Network-first for API
   if (req.url.includes('/api/')) {
     e.respondWith(
-      fetch(req).catch(() => caches.match(req))
+      fetch(req).catch(() => caches.match(req)).then(res => res || new Response('', { status: 503 }))
     );
     return;
   }
@@ -44,7 +55,7 @@ self.addEventListener('fetch', (e) => {
           caches.open(CACHE).then(cache => cache.put(req, copy)).catch(() => {});
           return res;
         })
-        .catch(() => caches.match('/offline.html'))
+        .catch(() => caches.match('/offline.html')).then(res => res || new Response('', { status: 503 }))
     );
     return;
   }
@@ -58,7 +69,7 @@ self.addEventListener('fetch', (e) => {
           caches.open(CACHE).then(cache => cache.put(req, copy)).catch(() => {});
           return res;
         }).catch(() => cached);
-        return cached || fetchPromise;
+        return cached || fetchPromise || new Response('', { status: 503 });
       })
     );
     return;
@@ -72,7 +83,7 @@ self.addEventListener('fetch', (e) => {
         caches.open(CACHE).then(cache => cache.put(req, copy)).catch(() => {});
         return res;
       }).catch(() => cached);
-      return cached || fetchPromise;
+      return cached || fetchPromise || new Response('', { status: 503 });
     })
   );
 });

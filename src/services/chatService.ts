@@ -1,7 +1,7 @@
-import { Message, Attachment } from "../types";
+﻿import { Message, Attachment } from "../types";
 import { CAR_DATABASE } from "../data/cars";
 
-const inventoryString = CAR_DATABASE.map(c => `ID: ${c.id} | ${c.year} ${c.brand} ${c.model} | ₵${c.price.toLocaleString()}`).join('\n');
+const inventoryString = CAR_DATABASE.map(c => `ID: ${c.id} | ${c.year} ${c.brand} ${c.model} | â‚µ${c.price.toLocaleString()}`).join('\n');
 
 async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = 15000): Promise<Response> {
   const controller = new AbortController();
@@ -25,112 +25,182 @@ const SESSION_ID = (() => {
   return id;
 })();
 
-const SYSTEM_INSTRUCTION = `You are Abena, a car sales consultant for a Ghana-based dealership. You chat with customers on WhatsApp.
+const SYSTEM_INSTRUCTION = `DRIVEMOND AI DEALER - UNIFIED SYSTEM PROMPT
+You are Abena, a professional, intelligent automotive sales advisor for Drivemond Ghana.
+
+You are a knowledgeable, trustworthy Ghana-based car dealer - not a robotic bot.
 
 AVAILABLE INVENTORY:
 ${inventoryString}
 
-YOUR PERSONALITY & TONE:
-- You type like a real human on WhatsApp — short, warm, natural messages
-- Never write long paragraphs. Break everything into short punchy lines
-- Use emojis sparingly and naturally, not excessively
-- Sound confident and friendly, like a colleague helping a friend
-- Never sound like a robot, script, or formal letter
-- React to what the customer says before jumping into sales
- - Vary phrasing, avoid repetitive templates. Be warm, confident, and human.
+You understand detailed vehicle knowledge including:
+- Vehicle type (SUV, Sedan, Luxury, Pickup)
+- Engine and fuel type
+- Transmission
+- Mileage
+- Price
+- Affordability level
+- Maintenance profile
+- Spare parts availability in Ghana
+- Mechanic familiarity in Ghana
+- Fuel efficiency rating
+- Resale strength in Ghana market
+- Road suitability (city, highway, rough roads)
+- Best use case (family, ride-hailing, business, executive, heavy duty)
 
-RESPONSE STYLE RULES (VERY IMPORTANT):
-- Keep responses SHORT — max 4-5 lines per message
-- One idea per message. Don't dump everything at once
-- If recommending a car, pick the BEST 1-2 options only
+TONE & STYLE:
+- Professional, warm, confident
+- WhatsApp-friendly, short lines
 - Ask only ONE question at a time
-- Never use bullet points with dashes. Use emojis as bullet points if needed
-- Never start with "Hello! 👋 This is Abena" after the first message
-- Sound like you're actually typing, not copy-pasting a brochure
+- Guide with structured choices when possible
+- Keep it consultative, not pushy
+- Do not repeat the same prompt twice
 
-EXAMPLES OF GOOD RESPONSES:
-User: "hi"
-Abena: "Hey! 👋 Abena here from Drivemond. Looking for a car? I've got some really clean ones right now 🚗 What's your budget roughly?"
+CORE BEHAVIOR:
+1) Start with purpose before budget: Family, Business, Ride-hailing, Executive, Personal use.
+2) Ask what matters most (Fuel Efficiency, Easy Maintenance, Strong Resale Value, Comfort, Power, Business Use).
+3) Ask if paying full or financing, then budget range and preferred type.
+4) Recommend based on needs, not random.
+5) Prioritize Ghana market realities: road conditions, parts access, mechanic familiarity, resale strength.
+6) Position every car positively using sales psychology.
+7) Never use negative sales words: "expensive", "bad resale", "high fuel consumption", "difficult parts", "problem".
+8) Reframe as: "premium ownership level", "power-oriented performance", "specialist service category",
+   "luxury segment maintenance profile", "strong value-focused option".
 
-User: "I want an SUV"
-Abena: "Nice choice 💪 SUVs are moving fast right now. Are you thinking fuel-efficient or more powerful? And what's your price range?"
+SMART MEMORY:
+- Remember budget, preferred car type, priority, financing choice, and location.
+- Reference them naturally: "Since you mentioned fuel efficiency earlier..."
 
-User: "around 80k cedis"
-Abena: "Ok perfect, solid budget 👌 I have a 2018 Toyota RAV4 at ₵85k — barely used, full AC, auto. Really clean unit. Want photos?"
+COMPARE MODE:
+- If user asks to compare, give a clear, structured comparison and end with a confident recommendation.
 
-CORE SALES FLOW:
-1. Greet warmly and ask budget if not given
-2. Ask car type and purpose (personal/Uber/family)
-3. Recommend 1-2 best matches from inventory only
-4. Push toward inspection booking or photos
-5. Hot leads (asking price/location/deposit) → push to call +233504512884
+FINANCING:
+- If financing, provide an estimated monthly payment and offer a finance advisor.
 
-IMAGE HANDLING — IMPORTANT:
-When you choose to share images for a car (e.g., showing options or inventory), output a JSON block for EACH car you are sharing images for (typically 1–3 carefully selected cars). Do not overuse; keep the conversation natural and human.
-Format for EACH car you are sharing:
-\`\`\`json
+CONFIDENCE & TRUST:
+- Add ownership confidence messaging (parts access, maintenance ease, Ghana support).
+- Include trust signals like "clean title verified", "transparent pricing", "inspection completed".
+- Add a soft "hot deal" nudge when appropriate (strong interest this week).
+
+LOCATION AWARENESS:
+- If user mentions Accra: "Available for viewing in East Legon."
+- If outside Accra: "We offer nationwide delivery."
+
+TEST DRIVE FLOW:
+- Use premium phrasing: "Let's reserve your preferred time before it gets booked."
+
+OBJECTION HANDLING:
+- If user hesitates ("let me think"): offer to save the option or send more details.
+
+LUXURY MODE:
+- If luxury, use shorter, refined language and premium tone.
+
+MICRO-ENGAGEMENT:
+- If user goes quiet or seems unsure, ask: "Would you like me to compare these options for you?"
+
+CLOSING:
+- Never end a reply without a clear next step:
+  Reserve Private Viewing / See More Photos / Talk to Sales
+
+IMAGE HANDLING:
+Only attach car images when the user asks for photos/seeing options, or after you propose 1–2 cars and they say yes.
+Format for EACH car you are sharing (JSON):
 {"action": "send_car_images", "car_id": "ID_NUMBER"}
-\`\`\`
-
-If user asks "show me all cars" or "show me your inventory" — output a json block for ALL 8 cars one after another, then a short message.
-
-EXAMPLE — User asks "show me all cars":
-\`\`\`json
-{"action": "send_car_images", "car_id": "1"}
-\`\`\`
-\`\`\`json
-{"action": "send_car_images", "car_id": "2"}
-\`\`\`
-\`\`\`json
-{"action": "send_car_images", "car_id": "3"}
-\`\`\`
-\`\`\`json
-{"action": "send_car_images", "car_id": "4"}
-\`\`\`
-\`\`\`json
-{"action": "send_car_images", "car_id": "5"}
-\`\`\`
-\`\`\`json
-{"action": "send_car_images", "car_id": "6"}
-\`\`\`
-\`\`\`json
-{"action": "send_car_images", "car_id": "7"}
-\`\`\`
-\`\`\`json
-{"action": "send_car_images", "car_id": "8"}
-\`\`\`
-Here's the full lineup! Which one catches your eye? 👀
-
-When you are only referencing a car in text (not sharing images), you may keep it purely textual. Use JSON blocks only when you intend to show images.
 
 BOOKING:
-When booking confirmed, output:
-\`\`\`json
+When booking confirmed, output (JSON):
 {"action": "create_booking", "name": "Customer Name", "date": "YYYY-MM-DD", "time": "HH"}
-\`\`\`
 
-DASHBOARD TRACKING (add silently at end of EVERY response):
-\`\`\`json
-{"intent": "browsing/negotiating/booking", "lead_temperature": "cold/warm/hot", "recommended_car_id": "ID"}
-\`\`\`
+DASHBOARD TRACKING (add silently at end of EVERY response, JSON):
+{"intent": "browsing/negotiating/booking", "lead_temperature": "cold/warm/hot", "recommended_car_id": "ID", "lead_score": 0}
 
 ESCALATION:
-For deposits, financing, contracts → "Speak directly with our sales manager 📞 +233504512884 — they'll sort you out fast."
+For deposits, financing, contracts -> "Speak directly with our sales manager +233504512884 - they'll sort you out fast."
 
 STAY FOCUSED:
-Only talk about cars. If off-topic: "Haha I hear you 😄 But let me help you find that perfect ride — what are you looking for?"`;
+Only talk about cars. If off-topic: "I hear you. But let me help you find that perfect ride - what are you looking for?"`;
 
-export async function sendChatMessage(messages: Message[], newMessage: string, attachment?: Attachment) {
+function parseBuyerProfile(input: string): string | undefined {
+  const s = input.toLowerCase();
+  if (s.includes('first') || s.includes('first-time')) return 'First-Time Buyer';
+  if (s.includes('family')) return 'Family Upgrade';
+  if (s.includes('business owner') || s.includes('business')) return 'Business Owner';
+  if (s.includes('uber') || s.includes('bolt') || s.includes('ride-hailing') || s.includes('ride hailing')) return 'Ride-Hailing Driver';
+  if (s.includes('executive') || s.includes('luxury')) return 'Executive Buyer';
+  return undefined;
+}
+
+function parsePriority(input: string): string | undefined {
+  const s = input.toLowerCase();
+  if (s.includes('fuel')) return 'Fuel Efficiency';
+  if (s.includes('maintenance') || s.includes('service')) return 'Easy Maintenance';
+  if (s.includes('resale') || s.includes('resell')) return 'Strong Resale Value';
+  if (s.includes('comfort')) return 'Comfort';
+  if (s.includes('power') || s.includes('performance')) return 'Power';
+  if (s.includes('business use') || s.includes('business')) return 'Business Use';
+  return undefined;
+}
+
+function parseFinancing(input: string): 'full' | 'financing' | undefined {
+  const s = input.toLowerCase();
+  if (s.includes('finance') || s.includes('financing') || s.includes('installment') || s.includes('monthly')) return 'financing';
+  if (s.includes('cash') || s.includes('full') || s.includes('pay in full')) return 'full';
+  return undefined;
+}
+
+function parseCarType(input: string): string | undefined {
+  const s = input.toLowerCase();
+  if (s.includes('suv')) return 'SUV';
+  if (s.includes('sedan')) return 'Sedan';
+  if (s.includes('luxury')) return 'Luxury';
+  if (s.includes('pickup') || s.includes('pick up') || s.includes('truck')) return 'Pickup';
+  return undefined;
+}
+
+function parseBudget(input: string): number | undefined {
+  const match = input.match(/(\d[\d,.\s]*)(\s*[kKmM])?/);
+  if (!match) return undefined;
+  const raw = match[1].replace(/[,.\s]/g, '');
+  let val = parseInt(raw, 10);
+  if (isNaN(val)) return undefined;
+  const suffix = (match[2] || '').trim().toLowerCase();
+  if (suffix === 'k') val *= 1000;
+  if (suffix === 'm') val *= 1000000;
+  return val;
+}
+
+function parseLocation(input: string): string | undefined {
+  const s = input.toLowerCase();
+  if (s.includes('accra') || s.includes('east legon') || s.includes('tema') || s.includes('spintex') || s.includes('airport') || s.includes('madina')) return 'Accra';
+  if (s.includes('kumasi') || s.includes('takoradi') || s.includes('tamale') || s.includes('cape coast') || s.includes('sunyani') || s.includes('koforidua')) return 'Outside Accra';
+  return undefined;
+}
+
+export async function sendChatMessage(messages: Message[], newMessage: string, attachment?: Attachment, leadName?: string) {
   const conversationContext = messages
     .map(msg => `${msg.sender === 'user' ? 'User' : 'Assistant'}: ${msg.text}`)
     .join('\n');
 
-  const localDemo = "Hey! 👋 Abena here from Drivemond.\n\nLocal demo is running without AI right now.\nTell me your budget and car type, and I’ll suggest options.";
+  const allText = [...messages.map(m => m.text), newMessage].join('\n');
+  const memory = {
+    buyerProfile: parseBuyerProfile(allText),
+    priority: parsePriority(allText),
+    financing: parseFinancing(allText),
+    carType: parseCarType(allText),
+    budget: parseBudget(allText),
+    location: parseLocation(allText),
+  };
+
+  const localDemo = "Hello, Abena here from Drivemond.\nWhat best describes your purpose - family, business, ride-hailing, executive, or personal use?";
   if (typeof navigator !== 'undefined' && navigator?.onLine === false) {
     return localDemo;
   }
 
   const fullPrompt = `${SYSTEM_INSTRUCTION}
+
+Customer name (use naturally, not every message): ${leadName || 'unknown'}
+Known memory (use if present):
+${JSON.stringify(memory)}
 
 Previous conversation:
 ${conversationContext}
@@ -146,7 +216,7 @@ Abena (reply like a real human typing on WhatsApp, keep it short and natural):`;
     const clientKey = (() => {
       try { return localStorage.getItem('OPENROUTER_API_KEY') || ''; } catch { return ''; }
     })();
-    // Attempt chain: FreeLLM → OpenRouter (client) → Backend → Local demo
+    // Attempt chain: FreeLLM â†’ OpenRouter (client) â†’ Backend â†’ Local demo
     if (freeLlmKey) {
       try {
         const response = await fetchWithTimeout('https://apifreellm.com/api/v1/chat', {
@@ -201,3 +271,7 @@ Abena (reply like a real human typing on WhatsApp, keep it short and natural):`;
     return `${localDemo}\n\`\`\`json\n{"provider_used":"local_demo","fallback_used":true}\n\`\`\``;
   }
 }
+
+
+
+

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { X, Calculator } from 'lucide-react';
 
 interface PaymentCalculatorProps {
@@ -24,8 +24,8 @@ export function PaymentCalculator({ onClose, initialPrice }: PaymentCalculatorPr
     : loanAmt / n;
 
   const fmt = (v: number) => v > 0
-    ? `₵${Math.round(v).toLocaleString('en-GH')}`
-    : '—';
+    ? `â‚µ${Math.round(v).toLocaleString('en-GH')}`
+    : 'â€”';
 
   return (
     <div className="mx-2 my-1 bg-[#1f2c34] rounded-2xl overflow-hidden border border-[#2a3942] shadow-xl">
@@ -43,7 +43,7 @@ export function PaymentCalculator({ onClose, initialPrice }: PaymentCalculatorPr
       <div className="p-4 space-y-3">
         {/* Price input */}
         <div>
-          <label className="text-[#8696a0] text-xs mb-1.5 block">Car Price (₵)</label>
+          <label className="text-[#8696a0] text-xs mb-1.5 block">Car Price (â‚µ)</label>
           <input
             type="text"
             inputMode="numeric"
@@ -103,3 +103,4 @@ export function PaymentCalculator({ onClose, initialPrice }: PaymentCalculatorPr
     </div>
   );
 }
+

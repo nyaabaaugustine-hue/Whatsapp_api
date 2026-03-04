@@ -1,1 +1,7 @@
 @import "tailwindcss";
+
+/* Reduce all buttons by 35% (visual size) */
+button {
+  transform: scale(0.65);
+  transform-origin: center;
+}

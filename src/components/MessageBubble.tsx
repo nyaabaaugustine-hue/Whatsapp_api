@@ -1,7 +1,7 @@
-import { format } from 'date-fns';
+﻿import { format } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
-import { Volume2, VolumeX, MessageCircle, CalendarCheck, Share2, TrendingUp, Copy, Check, Smartphone, Zap, Smile, Reply, Edit, Trash2 } from 'lucide-react';
+import { Volume2, VolumeX, CalendarCheck, Share2, TrendingUp, Copy, Check, Smartphone, Zap, Smile, Reply, Edit, Trash2 } from 'lucide-react';
 import { LocationCard } from './LocationCard';
 import { CarComparison } from './CarComparison';
 import { DepositCard } from './DepositCard';
@@ -21,19 +21,34 @@ interface MessageBubbleProps {
   onQuickReplySelect?: (value: string, text: string) => void;
 }
 
-// ── Share car via WhatsApp ────────────────────────────────────────────
+// â”€â”€ Share car via WhatsApp â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function shareCarViaWhatsApp(car: any) {
   const text = encodeURIComponent(
-    `🚗 Check out this car at Drivemond!\n\n` +
+    `ðŸš— Check out this car at Drivemond!\n\n` +
     `*${car.year} ${car.brand} ${car.model}*\n` +
-    `💰 Price: ₵${car.price.toLocaleString()}\n` +
-    `⚙️ ${(car as any).transmission || 'Auto'} · ⛽ ${(car as any).fuel || 'Petrol'} · 📍 ${(car as any).mileage || 'N/A'}\n\n` +
+    `Price: GHS ${car.price.toLocaleString()}\n` +
+    `âš™ï¸ ${(car as any).transmission || 'Auto'} Â· â›½ ${(car as any).fuel || 'Petrol'} Â· ðŸ“ ${(car as any).mileage || 'N/A'}\n\n` +
     `Interested? Chat with Drivemond: https://wa.me/233504512884`
   );
   window.open(`https://wa.me/?text=${text}`, '_blank');
 }
 
-// ── Beautiful Car Card ────────────────────────────────────────────────
+function formatPriceShort(n: number) {
+  if (n >= 1_000_000) {
+    const v = (n / 1_000_000).toFixed(1).replace(/\.0$/, '');
+    return `${v}M`;
+  }
+  if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
+  return `${n}`;
+}
+
+const WA_ICON = (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
+  </svg>
+);
+
+// â”€â”€ Beautiful Car Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function CarCard({ url, onBook }: { url: string; onBook?: (id: string, name: string) => void }) {
   const car = CAR_DATABASE.find(c => (c as any).real_image === url || c.image_url === url);
   const [shared, setShared] = useState(false);
@@ -57,17 +72,17 @@ function CarCard({ url, onBook }: { url: string; onBook?: (id: string, name: str
           onError={() => setImgErr(true)}
         />
         {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
         {/* Top badges */}
         {car && (
           <>
-            <span className="absolute top-2 left-2 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10">
+            <span className="absolute top-2 left-2 bg-black/70 backdrop-blur-md text-[#EDEDED] text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10">
               {car.year}
             </span>
             {(car as any).color && (
               <span className="absolute top-2 right-2 bg-black/70 backdrop-blur-md text-white text-[10px] px-2 py-0.5 rounded-full border border-white/10">
-                🎨 {(car as any).color}
+                ðŸŽ¨ {(car as any).color}
               </span>
             )}
           </>
@@ -76,12 +91,17 @@ function CarCard({ url, onBook }: { url: string; onBook?: (id: string, name: str
         {/* Bottom price overlay */}
         {car && (
           <div className="absolute bottom-0 left-0 right-0 px-3 py-2 flex items-end justify-between">
-            <div>
-              <p className="text-white font-black text-[15px] leading-tight drop-shadow-lg">{car.brand} {car.model}</p>
-              <p className="text-white/70 text-[10px]">{car.year} · Available Now</p>
+            <div className="bg-black/70 backdrop-blur-[1px] px-2 py-1 rounded-md">
+              <p className="text-[#EDEDED] font-black text-[15px] leading-tight drop-shadow-lg">{car.brand} {car.model}</p>
+              <p className="text-[#EDEDED]/90 text-[10px]">{car.year} · Available Now</p>
             </div>
             <div className="text-right">
-              <p className="text-[#4ade80] font-black text-[16px] leading-tight drop-shadow-lg">₵{car.price.toLocaleString()}</p>
+              <p
+                title={`GHS ${car.price.toLocaleString()}`}
+                className="bg-black/70 text-[#EDEDED] font-black text-[16px] leading-tight drop-shadow-lg px-2 py-1 rounded-md"
+              >
+                GHS {formatPriceShort(car.price)}
+              </p>
               <p className="text-white/60 text-[9px]">or best offer</p>
             </div>
           </div>
@@ -94,17 +114,17 @@ function CarCard({ url, onBook }: { url: string; onBook?: (id: string, name: str
           <div className="flex gap-1.5 mb-3 flex-wrap">
             {(car as any).transmission && (
               <span className="text-[10px] bg-[#2a3942] text-[#aebac1] px-2 py-1 rounded-full border border-[#3d4f5c]/50">
-                ⚙️ {(car as any).transmission}
+                âš™ï¸ {(car as any).transmission}
               </span>
             )}
             {(car as any).fuel && (
               <span className="text-[10px] bg-[#2a3942] text-[#aebac1] px-2 py-1 rounded-full border border-[#3d4f5c]/50">
-                ⛽ {(car as any).fuel}
+                â›½ {(car as any).fuel}
               </span>
             )}
             {(car as any).mileage && (
               <span className="text-[10px] bg-[#2a3942] text-[#aebac1] px-2 py-1 rounded-full border border-[#3d4f5c]/50">
-                📍 {(car as any).mileage}
+                ðŸ“ {(car as any).mileage}
               </span>
             )}
           </div>
@@ -128,7 +148,7 @@ function CarCard({ url, onBook }: { url: string; onBook?: (id: string, name: str
               )}
               title="Share this car"
             >
-              {shared ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
+              {shared ? <Check className="w-4 h-4" /> : <span className="text-[#25D366]">{WA_ICON}</span>}
             </button>
           </div>
         </div>
@@ -137,7 +157,7 @@ function CarCard({ url, onBook }: { url: string; onBook?: (id: string, name: str
   );
 }
 
-// ── Audio message player ──────────────────────────────────────────────
+// â”€â”€ Audio message player â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function AudioMessage({ url }: { url: string }) {
   return (
     <div className="flex items-center gap-3 bg-[#2a3942] rounded-xl px-3 py-2.5 mb-2 min-w-[200px]">
@@ -151,7 +171,7 @@ function AudioMessage({ url }: { url: string }) {
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────
+// â”€â”€ Main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export function MessageBubble({ message, onConfirmBooking, onReact, onReply, onEdit, onDelete, onQuickReplySelect }: MessageBubbleProps) {
   const isUser = message.sender === 'user';
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -173,7 +193,7 @@ export function MessageBubble({ message, onConfirmBooking, onReact, onReply, onE
 
   return (
     <div className={cn('flex w-full mb-1.5', isUser ? 'justify-end' : 'justify-start')}>
-      {/* Proactive message — special pill style */}
+      {/* Proactive message â€” special pill style */}
       {isProactive && !isUser ? (
         <div className="max-w-[88%] mx-auto">
           <div className="bg-gradient-to-r from-[#005c4b]/40 to-[#00a884]/20 border border-[#00a884]/30 rounded-2xl px-4 py-3 shadow-lg backdrop-blur-sm">
@@ -258,9 +278,9 @@ export function MessageBubble({ message, onConfirmBooking, onReact, onReply, onE
                         <a
                           href="https://wa.me/233504512884"
                           target="_blank" rel="noopener noreferrer"
-                          className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] active:scale-[0.97] text-white py-1.5 px-2 rounded-[6%] text-[12px] font-bold transition-all shadow-md shadow-[#25D366]/20"
+                          className="flex items-center justify-center gap-2 border-2 border-[#25D366] text-[#25D366] bg-transparent hover:bg-[#25D366]/10 active:scale-[0.97] py-1.5 px-2 rounded-[6%] text-[12px] font-bold transition-all shadow-md shadow-[#25D366]/10"
                         >
-                          <MessageCircle className="w-4 h-4" />
+                          {WA_ICON}
                           Chat with Owner on WhatsApp
                         </a>
                       )}
@@ -270,7 +290,7 @@ export function MessageBubble({ message, onConfirmBooking, onReact, onReply, onE
                           className="flex items-center justify-center gap-2 bg-[#00a884] hover:bg-[#008f72] active:scale-[0.97] text-white py-1.5 px-2 rounded-[6%] text-[12px] font-bold transition-all shadow-md"
                         >
                           <CalendarCheck className="w-4 h-4" />
-                          Confirm Booking · {message.bookingProposal.carName}
+                          Confirm Booking Â· {message.bookingProposal.carName}
                         </button>
                       )}
                     </div>
@@ -318,7 +338,7 @@ export function MessageBubble({ message, onConfirmBooking, onReact, onReply, onE
 
           {showReactions && (
             <div className="mt-1 flex gap-1">
-              {['👍','❤️','🔥','😊','🤝','💰'].map(e => (
+              {['ðŸ‘','â¤ï¸','ðŸ”¥','ðŸ˜Š','ðŸ¤','ðŸ’°'].map(e => (
                 <button key={e} onClick={() => { onReact?.(message.id, e); setShowReactions(false); }} className="text-[13px] px-1 py-0.5 rounded-[6%] bg-[#2a3942] text-[#e9edef] border border-[#3d4f5c] hover:bg-[#3b4a54]">
                   {e}
                 </button>
@@ -340,3 +360,4 @@ export function MessageBubble({ message, onConfirmBooking, onReact, onReply, onE
     </div>
   );
 }
+

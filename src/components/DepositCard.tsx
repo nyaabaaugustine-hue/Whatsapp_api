@@ -1,4 +1,4 @@
-import { Smartphone, Copy, Check } from 'lucide-react';
+﻿import { Smartphone, Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 
 interface DepositCardProps {
@@ -10,6 +10,15 @@ interface DepositCardProps {
 export function DepositCard({ carName, depositAmount, bookingId }: DepositCardProps) {
   const [copied, setCopied] = useState<string | null>(null);
 
+  const formatPriceShort = (n: number) => {
+    if (n >= 1_000_000) {
+      const v = (n / 1_000_000).toFixed(1).replace(/\.0$/, '');
+      return `${v}M`;
+    }
+    if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
+    return `${n}`;
+  };
+
   const copy = (text: string, key: string) => {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(key);
@@ -18,8 +27,8 @@ export function DepositCard({ carName, depositAmount, bookingId }: DepositCardPr
   };
 
   const accounts = [
-    { name: 'MTN Mobile Money', number: '0541988383', icon: '🟡', label: 'MTN MoMo' },
-    { name: 'Vodafone Cash', number: '0201988383', icon: '🔴', label: 'Voda Cash' },
+    { name: 'MTN Mobile Money', number: '0541988383', icon: 'ðŸŸ¡', label: 'MTN MoMo' },
+    { name: 'Vodafone Cash', number: '0201988383', icon: 'ðŸ”´', label: 'Voda Cash' },
   ];
 
   return (
@@ -37,8 +46,8 @@ export function DepositCard({ carName, depositAmount, bookingId }: DepositCardPr
       <div className="px-3 py-3 border-b border-[#2f3b43] flex items-center justify-between">
         <div>
           <p className="text-[#8696a0] text-[10px] uppercase font-semibold">Deposit Amount</p>
-          <p className="text-[#e9edef] text-[22px] font-black leading-tight">₵{depositAmount.toLocaleString()}</p>
-          <p className="text-[#8696a0] text-[10px]">Refundable · Secures car for 48hrs</p>
+          <p title={`GHS ${depositAmount.toLocaleString()}`} className="text-[#e9edef] text-[22px] font-black leading-tight">GHS {formatPriceShort(depositAmount)}</p>
+          <p className="text-[#8696a0] text-[10px]">Refundable Â· Secures car for 48hrs</p>
         </div>
         {bookingId && (
           <div className="text-right">
@@ -81,3 +90,4 @@ export function DepositCard({ carName, depositAmount, bookingId }: DepositCardPr
     </div>
   );
 }
+

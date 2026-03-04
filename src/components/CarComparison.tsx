@@ -1,4 +1,4 @@
-import { CalendarCheck, TrendingUp, Gauge, Fuel, Settings2, Check, X } from 'lucide-react';
+﻿import { CalendarCheck, TrendingUp, Gauge, Fuel, Settings2, Check, X } from 'lucide-react';
 import { CAR_DATABASE } from '../data/cars';
 
 interface CarComparisonProps {
@@ -12,13 +12,22 @@ export function CarComparison({ carId1, carId2, onBook }: CarComparisonProps) {
   const car2 = CAR_DATABASE.find(c => c.id === carId2);
   if (!car1 || !car2) return null;
 
+  const formatPriceShort = (n: number) => {
+    if (n >= 1_000_000) {
+      const v = (n / 1_000_000).toFixed(1).replace(/\.0$/, '');
+      return `${v}M`;
+    }
+    if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
+    return `${n}`;
+  };
+
   const rows = [
-    { label: 'Price', icon: '💰', v1: `₵${car1.price.toLocaleString()}`, v2: `₵${car2.price.toLocaleString()}`, winner: car1.price < car2.price ? 1 : 2 },
-    { label: 'Year', icon: '📅', v1: String(car1.year), v2: String(car2.year), winner: car1.year > car2.year ? 1 : 2 },
-    { label: 'Mileage', icon: '📍', v1: (car1 as any).mileage || 'N/A', v2: (car2 as any).mileage || 'N/A', winner: 0 },
-    { label: 'Fuel', icon: '⛽', v1: (car1 as any).fuel || 'Petrol', v2: (car2 as any).fuel || 'Petrol', winner: 0 },
-    { label: 'Transmission', icon: '⚙️', v1: (car1 as any).transmission || 'Auto', v2: (car2 as any).transmission || 'Auto', winner: 0 },
-    { label: 'Colour', icon: '🎨', v1: (car1 as any).color || 'N/A', v2: (car2 as any).color || 'N/A', winner: 0 },
+    { label: 'Price', icon: 'ðŸ’°', v1: `GHS ${formatPriceShort(car1.price)}`, v2: `GHS ${formatPriceShort(car2.price)}`, winner: car1.price < car2.price ? 1 : 2, full1: `GHS ${car1.price.toLocaleString()}`, full2: `GHS ${car2.price.toLocaleString()}` },
+    { label: 'Year', icon: 'ðŸ“…', v1: String(car1.year), v2: String(car2.year), winner: car1.year > car2.year ? 1 : 2 },
+    { label: 'Mileage', icon: 'ðŸ“', v1: (car1 as any).mileage || 'N/A', v2: (car2 as any).mileage || 'N/A', winner: 0 },
+    { label: 'Fuel', icon: 'â›½', v1: (car1 as any).fuel || 'Petrol', v2: (car2 as any).fuel || 'Petrol', winner: 0 },
+    { label: 'Transmission', icon: 'âš™ï¸', v1: (car1 as any).transmission || 'Auto', v2: (car2 as any).transmission || 'Auto', winner: 0 },
+    { label: 'Colour', icon: 'ðŸŽ¨', v1: (car1 as any).color || 'N/A', v2: (car2 as any).color || 'N/A', winner: 0 },
   ];
 
   return (
@@ -53,11 +62,11 @@ export function CarComparison({ carId1, carId2, onBook }: CarComparisonProps) {
             <span className="text-[11px]">{row.icon}</span>
             <span className="text-[#8696a0] text-[10px] font-medium">{row.label}</span>
           </div>
-          {[{ val: row.v1, win: row.winner === 1 }, { val: row.v2, win: row.winner === 2 }].map((cell, j) => (
+          {[{ val: row.v1, win: row.winner === 1, full: (row as any).full1 }, { val: row.v2, win: row.winner === 2, full: (row as any).full2 }].map((cell, j) => (
             <div key={j} className={`px-2 py-2 text-center border-l border-[#2f3b43] ${cell.win ? 'bg-[#00a884]/10' : ''}`}>
-              <span className={`text-[11px] font-semibold ${cell.win ? 'text-[#00a884]' : 'text-[#e9edef]'}`}>
+              <span title={cell.full} className={`text-[11px] font-semibold ${cell.win ? 'text-[#00a884]' : 'text-[#e9edef]'}`}>
                 {cell.val}
-                {cell.win && <span className="ml-1 text-[9px]">✓</span>}
+                {cell.win && <span className="ml-1 text-[9px]">âœ“</span>}
               </span>
             </div>
           ))}
@@ -78,3 +87,4 @@ export function CarComparison({ carId1, carId2, onBook }: CarComparisonProps) {
     </div>
   );
 }
+

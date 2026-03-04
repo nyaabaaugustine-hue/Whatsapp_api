@@ -1,11 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
-import { MoreVertical, Phone, Video, X, Share2, Volume2, VolumeX, Calculator } from 'lucide-react';
+﻿import { useState, useRef, useEffect } from 'react';
+import { MoreVertical, Phone, Video, X, Share2, Volume2, VolumeX, Download } from 'lucide-react';
 import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
 import { LeadCaptureModal } from './LeadCaptureModal';
 import { BookingModal } from './BookingModal';
-import { PaymentCalculator } from './PaymentCalculator';
-import { Message, Attachment } from '../types';
+import { Message, Attachment, QuickReply } from '../types';
 import { sendChatMessage } from '../services/chatService';
 import { CAR_DATABASE } from '../data/cars';
 import { cn } from '../lib/utils';
@@ -15,7 +14,14 @@ interface ChatAreaProps {
   onClose?: () => void;
 }
 
-const GREETING = "Hello! 👋 Am Abena.\n\nLooking for a car? Tell me:\n• Budget (₵)\n• Type (SUV/Sedan/Luxury)\n• When you need it\n\nI’ll show the best options fast 🚗";
+const GREETING = "Hello, I'm Abena.\nI'll help you find the right car based on your needs, budget, and lifestyle - in under 60 seconds.\nWhat best describes your purpose?";
+const GREETING_REPLIES: QuickReply[] = [
+  { id: 'g_family', text: 'Family Use', value: 'Family Use' },
+  { id: 'g_business', text: 'Business', value: 'Business Use' },
+  { id: 'g_ride', text: 'Ride-hailing', value: 'Ride-Hailing' },
+  { id: 'g_exec', text: 'Executive', value: 'Executive' },
+  { id: 'g_personal', text: 'Personal Use', value: 'Personal Use' },
+];
 
 export function ChatArea({ onClose }: ChatAreaProps) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -26,24 +32,40 @@ export function ChatArea({ onClose }: ChatAreaProps) {
   const [usingBackup, setUsingBackup] = useState<boolean>(false);
   const [isCalling, setIsCalling] = useState(false);
   const [autoRead, setAutoRead] = useState(false);
-  const [showCalculator, setShowCalculator] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [presetText, setPresetText] = useState<string>('');
+  const [nameGreeted, setNameGreeted] = useState(false);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [errorToast, setErrorToast] = useState<string | null>(null);
   const [chatBgUrl, setChatBgUrl] = useState<string | null>(() => {
     try { return localStorage.getItem('chat_bg_url') || 'https://res.cloudinary.com/dx1nrew3h/image/upload/v1772512677/aaaaa_w3eapq.jpg'; } catch { return 'https://res.cloudinary.com/dx1nrew3h/image/upload/v1772512677/aaaaa_w3eapq.jpg'; }
   });
+  const lastLeadScoreRef = useRef<number | null>(null);
+  const followUpTimerRef = useRef<number | null>(null);
+  const followUp24hRef = useRef<number | null>(null);
+  const followUp48hRef = useRef<number | null>(null);
+  const lastUserActivityRef = useRef<number>(Date.now());
+  const lastAiActivityRef = useRef<number>(Date.now());
+  const NOTIF_24_DUE_KEY = '__abena_notif_24_due__';
+  const NOTIF_48_DUE_KEY = '__abena_notif_48_due__';
+  const NOTIF_24_SENT_KEY = '__abena_notif_24_sent__';
+  const NOTIF_48_SENT_KEY = '__abena_notif_48_sent__';
+  const LAST_ACTIVITY_KEY = '__abena_last_activity__';
 
-  // Lead capture — show modal on first open
+  // Lead capture â€” show modal on first open
   const [leadInfo, setLeadInfo] = useState<{ name: string; phone: string } | null>(null);
   const [showLeadModal, setShowLeadModal] = useState(true);
+  const LEAD_STORAGE_KEY = '__lead_info__';
+  const LEAD_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
   // Booking modal
   const [bookingModal, setBookingModal] = useState<{ carId: string; carName: string } | null>(null);
 
-  // Sales handoff — only show after booking confirmed or hot purchase intent
+  // Sales handoff â€” only show after booking confirmed or hot purchase intent
   const [showHandoff, setShowHandoff] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [flow, setFlow] = useState<{ stage: 'idle' | 'budget' | 'type' | 'timeline' | 'results'; budget?: string; carType?: string; timeline?: string }>({ stage: 'idle' });
 
   // Type out greeting word-by-word on mount (after lead modal dismissed)
@@ -69,7 +91,11 @@ export function ChatArea({ onClose }: ChatAreaProps) {
         else if (w.length > 7) delay += 100 + Math.random() * 60;
         await new Promise(r => setTimeout(r, delay));
       }
-      if (!cancelled) { setIsTyping(false); setGreetingDone(true); }
+      if (!cancelled) {
+        setIsTyping(false);
+        setGreetingDone(true);
+        setMessages([{ id: msgId, text: GREETING, sender: 'ai', timestamp: new Date(), quickReplies: GREETING_REPLIES }]);
+      }
     })();
 
     return () => { cancelled = true; };
@@ -78,21 +104,13 @@ export function ChatArea({ onClose }: ChatAreaProps) {
   useEffect(() => {
     if (!greetingDone) return;
     setMessages(prev => prev.map(m => m.id === 'greeting'
-      ? {
-          ...m,
-          quickReplies: [
-            { id: 'g1', text: 'Find a Car', value: 'find_car' },
-            { id: 'g2', text: 'View Inventory', value: 'view_inventory' },
-            { id: 'g3', text: 'Book Test Drive', value: 'book_viewing' },
-            { id: 'g4', text: 'Car Park Location', value: 'location' },
-            { id: 'g5', text: 'Talk to Sales Rep', value: 'talk_sales' },
-          ],
-        }
+      ? { ...m }
       : m));
   }, [greetingDone]);
   useEffect(() => {
+    if (!isAtBottom) return;
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages, isTyping]);
+  }, [messages, isTyping, isAtBottom]);
 
   useEffect(() => {
     const on = () => setNetOnline(true);
@@ -105,9 +123,56 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     };
   }, []);
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LEAD_STORAGE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw) as { name: string; phone: string; savedAt: number };
+      if (Date.now() - data.savedAt > LEAD_TTL_MS) {
+        localStorage.removeItem(LEAD_STORAGE_KEY);
+        return;
+      }
+      setLeadInfo({ name: data.name, phone: data.phone });
+      setShowLeadModal(false);
+      setNameGreeted(true);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    const maybeNotify = async () => {
+      if (!('Notification' in window)) return;
+      if (Notification.permission !== 'granted') return;
+      const now = Date.now();
+      const due24 = parseInt(localStorage.getItem(NOTIF_24_DUE_KEY) || '0', 10);
+      const due48 = parseInt(localStorage.getItem(NOTIF_48_DUE_KEY) || '0', 10);
+      const sent24 = localStorage.getItem(NOTIF_24_SENT_KEY) === '1';
+      const sent48 = localStorage.getItem(NOTIF_48_SENT_KEY) === '1';
+      if (due24 && now >= due24 && !sent24) {
+        localStorage.setItem(NOTIF_24_SENT_KEY, '1');
+        new Notification('Drivemond Follow‑Up', { body: 'The options you viewed are still available. Would you like to reserve one?' });
+      }
+      if (due48 && now >= due48 && !sent48) {
+        localStorage.setItem(NOTIF_48_SENT_KEY, '1');
+        new Notification('Drivemond Check‑In', { body: 'Just checking in — want me to narrow this down to one best match?' });
+      }
+    };
+    maybeNotify();
+  }, []);
+
+  useEffect(() => {
+    if (!leadInfo) return;
+    if (!logService.getCurrentSession()) {
+      logService.startNewSession();
+    }
+    logService.updateUserInfo({ name: leadInfo.name, phone: leadInfo.phone });
+  }, [leadInfo]);
+
   const handleLeadSubmit = (name: string, phone: string) => {
     setLeadInfo({ name, phone });
     setShowLeadModal(false);
+    try {
+      localStorage.setItem(LEAD_STORAGE_KEY, JSON.stringify({ name, phone, savedAt: Date.now() }));
+    } catch {}
     if (!logService.getCurrentSession()) {
       logService.startNewSession();
     }
@@ -117,12 +182,28 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       lead_temperature: 'warm',
       messageText: `Lead captured: ${name} | ${phone}`
     });
-    // Personalise first message
-    setMessages(prev => prev.map(m =>
-      m.id === 'greeting'
-        ? { ...m, text: m.text.replace('Hello! 👋 Am Abena', `Hello ${name}! 👋 Am Abena`) }
-        : m
-    ));
+    // Personalise first message (or add one if missing)
+    let greeted = false;
+    setMessages(prev => {
+      const next = prev.map(m =>
+        m.id === 'greeting'
+          ? { ...m, text: m.text.replace('Hi! ðŸ‘‹ Iâ€™m Abena', `Hi ${name}! ðŸ‘‹ Iâ€™m Abena`) }
+          : m
+      );
+      greeted = next.some(m => m.id === 'greeting');
+      return next;
+    });
+    if (!greeted) {
+      const msg: Message = {
+        id: (Date.now() + 1).toString(),
+        text: `Hi ${name}! ðŸ‘‹ Iâ€™m Abena.\nWhat budget range are you working with?`,
+        sender: 'ai',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, msg]);
+      logService.addMessageToSession(msg);
+    }
+    setNameGreeted(true);
   };
 
   
@@ -137,9 +218,16 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     });
     const confirmMsg: Message = {
       id: Date.now().toString(),
-      text: `✅ **Booking Confirmed!**\n\n📅 **Date**: ${date} at ${time}\n🚗 **Vehicle**: ${carName}\n📞 **Booking ID**: ${booking.id}\n\nOur sales manager will call you shortly to confirm the appointment. Thank you${leadInfo ? `, ${leadInfo.name}` : ''}! 😊`,
+      text: `Booking Confirmed.\n\nDate: ${date} at ${time}\nVehicle: ${carName}\nBooking ID: ${booking.id}\n\nOur sales manager will call you shortly to confirm the appointment. Thank you${leadInfo ? `, ${leadInfo.name}` : ''}.\n\nWould you like assistance with insurance, registration, financing, or delivery?`,
       sender: 'ai',
-      timestamp: new Date()
+      timestamp: new Date(),
+      quickReplies: [
+        { id: 'up_ins', text: 'Insurance', value: 'Insurance' },
+        { id: 'up_reg', text: 'Registration', value: 'Registration' },
+        { id: 'up_fin', text: 'Financing', value: 'Financing' },
+        { id: 'up_del', text: 'Delivery', value: 'Delivery' },
+        { id: 'up_sales', text: 'Talk to Sales', value: 'talk_sales' },
+      ]
     };
     setMessages(prev => [...prev, confirmMsg]);
 
@@ -165,19 +253,36 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       const time = m.timestamp.toLocaleString();
       return `${who} [${time}]: ${m.text}`;
     });
-    const shortText = transcriptLines.slice(-20).join('\n').slice(0, 1800);
-    if (phone) {
-      const t = encodeURIComponent(`Chat Transcript:\n\n${shortText}\n\nThank you.`);
-      window.open(`https://wa.me/${phone}?text=${t}`, '_blank');
-    }
     const html = `<h2>Chat Transcript</h2><p>Name: ${leadInfo?.name || 'Unknown'}</p><p>Phone: ${leadInfo?.phone || 'Unknown'}</p><pre style="white-space:pre-wrap;font-family:Inter,system-ui">${transcriptLines.join('\n')}</pre>`;
     await fetch('/api/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: 'josemorgan120@gmail.com', subject: `Chat Transcript - ${leadInfo?.name || 'Customer'}`, html })
     });
-    alert('Transcript sent');
+    setErrorToast('Transcript emailed.');
+    setTimeout(() => setErrorToast(null), 2500);
+    logService.addLog({
+      intent: 'transcript_saved',
+      lead_temperature: 'warm',
+      messageText: `Transcript saved for ${leadInfo?.name || 'Unknown'}`
+    });
   };
+
+  const downloadTranscript = () => {
+    const transcriptLines = messages.map(m => {
+      const who = m.sender === 'user' ? 'You' : 'Abena';
+      const time = m.timestamp.toLocaleString();
+      return `${who} [${time}]: ${m.text}`;
+    });
+    const blob = new Blob([transcriptLines.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chat-transcript-${Date.now()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
 
   const clearChat = () => {
     if (window.confirm("Clear this chat?")) {
@@ -211,11 +316,14 @@ export function ChatArea({ onClose }: ChatAreaProps) {
   }
 
   function parseBudget(input: string): number | undefined {
-    const match = input.match(/₵?\s*([\d.,]+)/i);
+    const match = input.match(/(\d[\d,.\s]*)(\s*[kKmM])?/);
     if (!match) return undefined;
     const raw = match[1].replace(/[,.\s]/g, '');
-    const val = parseInt(raw, 10);
+    let val = parseInt(raw, 10);
     if (isNaN(val)) return undefined;
+    const suffix = (match[2] || '').trim().toLowerCase();
+    if (suffix === 'k') val *= 1000;
+    if (suffix === 'm') val *= 1000000;
     return val;
   }
 
@@ -225,7 +333,46 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     if (s.includes('sedan')) return 'Sedan';
     if (s.includes('luxury')) return 'Luxury';
     if (s.includes('pickup')) return 'Pickup';
+    if (s.includes('load') || s.includes('carry') || s.includes('cargo')) return 'Pickup';
+    if (s.includes('strong')) return 'Pickup';
+    if (s.includes('long journey') || s.includes('long trip') || s.includes('road trip')) return 'SUV';
     if (s.includes('electric') || s.includes('hybrid')) return 'Electric';
+    return undefined;
+  }
+
+  function parseBuyerProfile(input: string): string | undefined {
+    const s = input.toLowerCase();
+    if (s.includes('first') || s.includes('first-time')) return 'First-Time Buyer';
+    if (s.includes('family')) return 'Family Use';
+    if (s.includes('business owner') || s.includes('business')) return 'Business Use';
+    if (s.includes('uber') || s.includes('bolt') || s.includes('ride-hailing') || s.includes('ride hailing')) return 'Ride-Hailing';
+    if (s.includes('executive') || s.includes('luxury')) return 'Executive';
+    if (s.includes('personal')) return 'Personal Use';
+    return undefined;
+  }
+
+  function parsePriority(input: string): string | undefined {
+    const s = input.toLowerCase();
+    if (s.includes('fuel')) return 'Fuel Efficiency';
+    if (s.includes('maintenance') || s.includes('service')) return 'Easy Maintenance';
+    if (s.includes('resale') || s.includes('resell')) return 'Strong Resale Value';
+    if (s.includes('comfort') || s.includes('spacious')) return 'Comfort';
+    if (s.includes('power') || s.includes('performance')) return 'Power';
+    if (s.includes('business use') || s.includes('business')) return 'Business Use';
+    return undefined;
+  }
+
+  function parseFinancing(input: string): 'full' | 'financing' | undefined {
+    const s = input.toLowerCase();
+    if (s.includes('finance') || s.includes('financing') || s.includes('installment') || s.includes('monthly')) return 'financing';
+    if (s.includes('cash') || s.includes('full') || s.includes('pay in full')) return 'full';
+    return undefined;
+  }
+
+  function parseLocation(input: string): 'Accra' | 'Outside Accra' | undefined {
+    const s = input.toLowerCase();
+    if (s.includes('accra') || s.includes('east legon') || s.includes('tema') || s.includes('spintex') || s.includes('airport') || s.includes('madina')) return 'Accra';
+    if (s.includes('kumasi') || s.includes('takoradi') || s.includes('tamale') || s.includes('cape coast') || s.includes('sunyani') || s.includes('koforidua')) return 'Outside Accra';
     return undefined;
   }
 
@@ -235,6 +382,34 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     if (s.includes('month')) return 'within a month';
     if (s.includes('browse')) return 'just browsing';
     return undefined;
+  }
+
+  function findCarsInText(input: string) {
+    const s = input.toLowerCase();
+    return CAR_DATABASE.filter(c => {
+      const b = c.brand.toLowerCase();
+      const m = c.model.toLowerCase();
+      return s.includes(b) || s.includes(m) || s.includes(`${b} ${m}`) || s.includes(`${m} ${b}`);
+    });
+  }
+
+  function rankCars(cars: typeof CAR_DATABASE, priority?: string) {
+    const score = (c: any) => {
+      let s = 0;
+      const brand = c.brand.toLowerCase();
+      const model = c.model.toLowerCase();
+      if (priority === 'Fuel Efficiency' || priority === 'Easy Maintenance' || priority === 'Strong Resale Value') {
+        if (brand.includes('toyota') || brand.includes('honda')) s += 4;
+      }
+      if (priority === 'Comfort' || priority === 'Power') {
+        if (brand.includes('lexus') || brand.includes('mercedes')) s += 3;
+      }
+      if (priority === 'Business Use') {
+        if (model.includes('f-150') || model.includes('rav4') || model.includes('cr-v')) s += 3;
+      }
+      return s;
+    };
+    return cars.slice().sort((a, b) => score(b) - score(a));
   }
 
   function selectCars(budget?: number, type?: string) {
@@ -254,40 +429,456 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     return cars.slice(0, 3);
   }
 
-  function craftLocalReply(userText: string) {
-    const budget = parseBudget(userText);
-    const type = parseType(userText);
+  function craftLocalReply(userText: string, name?: string, addName?: boolean, lastBudget?: number, lastProfile?: string, lastPriority?: string, lastFinancing?: 'full' | 'financing', lastType?: string) {
+    const budget = parseBudget(userText) ?? lastBudget;
+    const type = parseType(userText) ?? lastType;
+    const profile = parseBuyerProfile(userText) ?? lastProfile;
+    const priority = parsePriority(userText) ?? lastPriority;
+    const financing = parseFinancing(userText) ?? lastFinancing;
     const time = parseTimeline(userText);
     const minPrice = Math.min(...CAR_DATABASE.map(c => c.price));
-    const picks = selectCars(budget, type);
-    const imgs = picks.map(c => ((c as any).real_image || c.image_url));
+    const picks = rankCars(selectCars(budget, type), priority);
+    const lower = userText.toLowerCase();
+    const locationHit = parseLocation(userText);
+    const askedForPhotos = ['photo', 'photos', 'picture', 'pictures', 'image', 'images', 'show', 'see', 'view'].some(k => lower.includes(k));
+    const askedInventory = ['inventory', 'all cars', 'all the cars', 'full list', 'show all', 'list all', 'what do you have'].some(k => lower.includes(k));
+    const askedLocation = ['location', 'address', 'where are you', 'showroom', 'office', 'map', 'directions'].some(k => lower.includes(k));
+    const askedAlert = ['alert', 'notify', 'let me know', 'call me', 'text me', 'message me'].some(k => lower.includes(k));
+    const askedContact = ['contact', 'contacts', 'phone', 'number', 'call', 'whatsapp'].some(k => lower.includes(k));
+    const askedRugged = ['rugged', 'ruggard', 'tough', 'strong body', 'strong one', 'strong', 'offroad', 'off-road', 'durable'].some(k => lower.includes(k));
+    const askedCompare = lower.includes('compare') || lower.includes('vs') || lower.includes('versus');
+    const compareCars = askedCompare ? findCarsInText(userText).slice(0, 2) : [];
+    const unsure = ['not sure', 'not sure yet', 'hmm', 'maybe', 'thinking', 'let me think', 'later'].some(k => lower.includes(k));
+    const wantsBestValue = lower.includes('best value') || lower.includes('best-value') || userText === 'best_value';
+    const wantsRecommend = lower.includes('recommend') || userText === 'recommend_for_me';
+    const wantsNarrow = lower.includes('narrow') || userText === 'narrow_one';
+    const shouldAttachImages = askedForPhotos;
+    const imgs = shouldAttachImages ? picks.slice(0, 2).map(c => ((c as any).real_image || c.image_url)) : [];
     let lines: string[] = [];
-    if (budget) lines.push(`Got it — budget ₵${budget.toLocaleString()}.`);
-    if (type) lines.push(`Noted: ${type}.`);
+    let quickReplies: QuickReply[] | undefined;
+    if (name && addName) lines.push(`Hello ${name}.`);
+    if (askedLocation) {
+      const locLine = locationHit === 'Outside Accra'
+        ? "We offer nationwide delivery across Ghana."
+        : "We're in East Legon, Accra. Want directions or a pin?";
+      lines.push(locLine);
+      return {
+        text: lines.join('\n'),
+        aiImages: [],
+        quickReplies: [
+          { id: 'loc_dir', text: 'Directions', value: 'directions' },
+          { id: 'loc_pin', text: 'Send Pin', value: 'send_pin' }
+        ]
+      };
+    }
+    if (askedContact) {
+      lines.push("You can reach our sales manager on WhatsApp:");
+      lines.push("+233504512884");
+      quickReplies = [{ id: 'contact_wa', text: 'Send WhatsApp Contact', value: 'send_contact' }];
+      return { text: lines.join('\n'), aiImages: [], quickReplies };
+    }
+    if (askedCompare && compareCars.length === 2) {
+      const [a, b] = compareCars;
+      lines.push(`Compare: ${a.brand} ${a.model} vs ${b.brand} ${b.model}`);
+      lines.push(`${a.brand} ${a.model} - fuel efficiency: strong, maintenance: easy, resale: strong.`);
+      lines.push(`${b.brand} ${b.model} - comfort: strong, road confidence: strong.`);
+      if (priority) lines.push(`Based on ${priority}, my strongest pick is ${a.brand} ${a.model}.`);
+      return { text: lines.join('\n'), aiImages: [], quickReplies };
+    }
+    if (lower.includes('sedan vs suv')) {
+      lines.push("If you value fuel savings and easy parking, a sedan fits well.");
+      lines.push("If you want more space and road height, an SUV is ideal.");
+      lines.push("Which way do you want to lean?");
+      return {
+        text: lines.join('\n'),
+        aiImages: [],
+        quickReplies: [
+          { id: 'lean_sedan', text: 'Sedan', value: 'Sedan' },
+          { id: 'lean_suv', text: 'SUV', value: 'SUV' }
+        ]
+      };
+    }
+    if (lower.includes('budget vs comfort')) {
+      lines.push("Budget focus gives you strong value and lower ownership costs.");
+      lines.push("Comfort focus gives you a more premium, relaxed drive.");
+      lines.push("Which matters more right now?");
+      return {
+        text: lines.join('\n'),
+        aiImages: [],
+        quickReplies: [
+          { id: 'lean_budget', text: 'Budget', value: 'Budget' },
+          { id: 'lean_comfort', text: 'Comfort', value: 'Comfort' }
+        ]
+      };
+    }
+    if (lower.includes('fuel savings vs space')) {
+      lines.push("Fuel savings favors smaller, lighter sedans.");
+      lines.push("Space favors SUVs with more cabin and cargo room.");
+      lines.push("Which matters most for your daily use?");
+      return {
+        text: lines.join('\n'),
+        aiImages: [],
+        quickReplies: [
+          { id: 'lean_fuel', text: 'Fuel Savings', value: 'Fuel Savings' },
+          { id: 'lean_space', text: 'More Space', value: 'Space' }
+        ]
+      };
+    }
+    if (lower.includes('let me think') || lower.includes('think about it')) {
+      lines.push("No problem at all.");
+      lines.push("Would you like me to save this option or send a quick comparison?");
+      return {
+        text: lines.join('\n'),
+        aiImages: [],
+        quickReplies: [
+          { id: 'save_opt', text: 'Save Option', value: 'save_option' },
+          { id: 'quick_comp', text: 'Quick Comparison', value: 'quick_comparison' }
+        ]
+      };
+    }
+    if (askedAlert) {
+      lines.push("Understood. I will alert you the moment a clean unit lands in that range.");
+      lines.push("Do you prefer SUV, sedan, or pickup?");
+      quickReplies = [
+        { id: 'type_suv', text: 'SUV', value: 'SUV' },
+        { id: 'type_sedan', text: 'Sedan', value: 'Sedan' },
+        { id: 'type_pickup', text: 'Pickup', value: 'Pickup' },
+        { id: 'type_any', text: 'Any', value: 'any' }
+      ];
+      return { text: lines.join('\n'), aiImages: [], quickReplies };
+    }
+
+    if (!profile) {
+      lines.push("What best describes your purpose?");
+      quickReplies = [
+        { id: 'p_family', text: 'Family Use', value: 'Family Use' },
+        { id: 'p_business', text: 'Business', value: 'Business Use' },
+        { id: 'p_ride', text: 'Ride-hailing', value: 'Ride-Hailing' },
+        { id: 'p_exec', text: 'Executive', value: 'Executive' },
+        { id: 'p_personal', text: 'Personal Use', value: 'Personal Use' }
+      ];
+      return { text: lines.join('\n'), aiImages: [], quickReplies };
+    }
+
+    if (!priority) {
+      lines.push("What matters most to you?");
+      quickReplies = [
+        { id: 'pr_fuel', text: 'Fuel Efficiency', value: 'Fuel Efficiency' },
+        { id: 'pr_maint', text: 'Easy Maintenance', value: 'Easy Maintenance' },
+        { id: 'pr_resale', text: 'Strong Resale Value', value: 'Strong Resale Value' },
+        { id: 'pr_comfort', text: 'Comfort', value: 'Comfort' }
+      ];
+      return { text: lines.join('\n'), aiImages: [], quickReplies };
+    }
+
+    if (!financing) {
+      lines.push("Are you paying full or financing?");
+      quickReplies = [
+        { id: 'pay_full', text: 'Paying Full', value: 'pay in full' },
+        { id: 'pay_fin', text: 'Financing', value: 'financing' }
+      ];
+      return { text: lines.join('\n'), aiImages: [], quickReplies };
+    }
+
+    if (askedForPhotos && !type) {
+      lines.push("Which type should I show — SUV, sedan, or pickup?");
+      quickReplies = [
+        { id: 'type_suv', text: 'SUV', value: 'SUV' },
+        { id: 'type_sedan', text: 'Sedan', value: 'Sedan' },
+        { id: 'type_pickup', text: 'Pickup', value: 'Pickup' },
+        { id: 'type_any', text: 'Any', value: 'any' }
+      ];
+      return { text: lines.join('\n'), aiImages: [], quickReplies };
+    }
+
+    if (!budget) {
+      if (askedInventory) {
+        lines.push("I'll guide you step by step.");
+      }
+      if (askedRugged && !type) {
+        lines.push("For rugged use, do you want an SUV or pickup?");
+        quickReplies = [
+          { id: 'rug_suv', text: 'SUV', value: 'SUV' },
+          { id: 'rug_pick', text: 'Pickup', value: 'Pickup' }
+        ];
+        return { text: lines.join('\n'), aiImages: [], quickReplies };
+      } else if (type) {
+        lines.push(`${type} noted.`);
+      }
+      if (priority) lines.push(`Priority noted: ${priority}.`);
+      lines.push("What's your comfortable budget range?");
+      quickReplies = [
+        { id: 'b_under_100', text: 'Under GHS 100k', value: 'under_100k' },
+        { id: 'b_150', text: 'GHS 150k', value: '150000' },
+        { id: 'b_200', text: 'GHS 200k', value: '200000' },
+        { id: 'b_250', text: 'GHS 250k', value: '250000' },
+        { id: 'b_300_plus', text: 'GHS 300k & above', value: '300000+' }
+      ];
+      return { text: lines.join('\n'), aiImages: [], quickReplies };
+    }
+
+    // budget is present
+    lines.push(`Great - budget GHS ${budget.toLocaleString()}.`);
+    if (financing === 'financing') {
+      const estimate = Math.round((budget * 0.8) / 36);
+      lines.push(`Estimated monthly from GHS ${estimate.toLocaleString()} (36 months, 20% deposit).`);
+      const financeAnswered = lower.includes('finance_yes') || lower.includes('not_now');
+      if (!financeAnswered) {
+        lines.push("Would you like a finance advisor to tailor options?");
+        quickReplies = [
+          { id: 'fin_yes', text: 'Yes, connect me', value: 'finance_yes' },
+          { id: 'fin_no', text: 'Not now', value: 'not_now' }
+        ];
+        return { text: lines.join('\n'), aiImages: [], quickReplies };
+      }
+    }
+    if (!type) {
+      if (budget <= 100000) {
+        lines.push("Under GHS 100k is a smart budget range in Ghana.");
+        lines.push("You get reliable, fuel-efficient options with easy maintenance support.");
+        lines.push("Ownership advantage:");
+        lines.push("- Lower insurance costs");
+        lines.push("- Affordable servicing");
+        lines.push("- Easy spare parts access");
+        lines.push("- Strong resale demand");
+        const useAnswered = lower.includes('daily') || lower.includes('business use');
+        if (!useAnswered) {
+          lines.push("Will this be for daily driving or business use?");
+          return {
+            text: lines.join('\n'),
+            aiImages: [],
+            quickReplies: [
+              { id: 'use_daily', text: 'Daily Driving', value: 'Daily Driving' },
+              { id: 'use_business', text: 'Business Use', value: 'Business Use' }
+            ]
+          };
+        }
+      }
+      lines.push("What type are you interested in?");
+      quickReplies = [
+        { id: 'type_sedan', text: 'Sedan (Fuel Efficient)', value: 'Sedan' },
+        { id: 'type_suv', text: 'Compact SUV', value: 'SUV' },
+        { id: 'type_reco', text: 'Recommend for Me', value: 'recommend_for_me' }
+      ];
+      return { text: lines.join('\n'), aiImages: [], quickReplies };
+    }
+    if (wantsRecommend) {
+      const top = picks[0];
+      if (top) {
+        lines.push(`Based on what you've told me, my strongest recommendation is the ${top.brand} ${top.model}.`);
+        lines.push("Fuel efficiency: strong. Maintenance: easy. Resale: strong.");
+        lines.push("Fully inspected, verified documents, transparent pricing.");
+        lines.push("This model maintains strong resale demand in Ghana.");
+        return { text: lines.join('\n'), aiImages: imgs, quickReplies };
+      }
+    }
+    if (wantsBestValue) {
+      const top = picks.slice(0, 2);
+      lines.push("Fast-moving models under your range this week:");
+      top.forEach(c => lines.push(`${c.brand} ${c.model} - strong value and easy ownership.`));
+      if (top[0]) {
+        lines.push(`Top pick: ${top[0].brand} ${top[0].model}. Proven reliability, strong fuel economy, and resale demand.`);
+      }
+      return { text: lines.join('\n'), aiImages: imgs, quickReplies };
+    }
+    if (type) lines.push(`${type} noted.`);
     if (time) lines.push(`Timing: ${time}.`);
-    if (!budget && !type) lines.push(`Ok 👌 Tell me your budget and car type.`);
-    // Guard: very low budgets — keep it honest and human
-    if (budget && budget < Math.max(50000, Math.floor(minPrice * 0.5))) {
-      lines.push(`Being real with you — clean units usually start around ₵${minPrice.toLocaleString()}.`);
-      lines.push(`If you can stretch a bit, I’ll find you the best value. What’s your revised budget?`);
-      return { text: lines.join('\n'), aiImages: [] };
+    if (time === 'this week') {
+      lines.push("Let's move quickly to secure the right option for you.");
+    }
+    if (time === 'just browsing') {
+      lines.push("I'll show you strong options to consider comfortably.");
+    }
+    // Guard: low budgets â€” keep it honest and human
+    if (budget < minPrice) {
+      lines.push(`Clean, verified units usually start around GHS ${minPrice.toLocaleString()}.`);
+      lines.push("Would you like me to watch for a value-focused option in your range?");
+      return {
+        text: lines.join('\n'),
+        aiImages: [],
+        quickReplies: [
+          { id: 'alert_yes', text: 'Yes, alert me', value: 'alert_me' },
+          { id: 'alert_no', text: 'Not now', value: 'not_now' }
+        ]
+      };
     }
     if (picks.length > 0) {
       const top = picks[0];
-      lines.push(`Sharing options now 👇`);
-      lines.push(`${top.brand} ${top.model} · ₵${top.price.toLocaleString()}`);
+      const isLuxury = categoryOf(top.brand, top.model) === 'Luxury' || profile === 'Executive' || type === 'Luxury';
+      if (isLuxury) {
+        lines.push(`${top.brand} ${top.model} - refined comfort with strong road presence.`);
+      } else {
+        lines.push(`${top.brand} ${top.model} - dependable daily companion with strong fuel savings.`);
+      }
+      lines.push("Widely supported in Ghana with easy maintenance and good parts access.");
+      lines.push("Fully inspected, verified documents, transparent pricing.");
+      lines.push("Fuel efficiency: strong. Resale: strong. Ghana roads: confident.");
+      lines.push("Ownership profile: easy servicing support, widely available parts, stable resale value.");
+      lines.push("This model maintains strong resale demand in Ghana.");
+      if (profile === 'Business Use' || priority === 'Business Use') {
+        lines.push("Business-ready performance with dependable uptime.");
+      }
+      if (['RAV4','CR-V','Corolla','RX 350'].includes(top.model)) {
+        lines.push("This model is getting strong interest this week.");
+      }
+      if (locationHit === 'Accra') {
+        lines.push("Available for viewing in East Legon.");
+      } else if (locationHit === 'Outside Accra') {
+        lines.push("We offer nationwide delivery across Ghana.");
+      }
+      if (unsure) {
+        lines.push("Would you like a quick comparison with a close alternative?");
+        quickReplies = [
+          { id: 'comp_yes', text: 'Yes, compare', value: 'quick_comparison' },
+          { id: 'comp_no', text: 'Not now', value: 'not_now' }
+        ];
+      } else if (wantsNarrow) {
+        lines.push(`Based on what you've told me, my strongest recommendation is the ${top.brand} ${top.model}.`);
+      } else {
+        lines.push("Do you want photos or 1-2 more options?");
+        quickReplies = [
+          { id: 'show_photos', text: 'Show Photos', value: 'show_photos' },
+          { id: 'more_opts', text: 'More Options', value: 'more_options' }
+        ];
+      }
+      lines.push("Would you like to reserve a private viewing slot before it fills up?");
+      if (!quickReplies) {
+        quickReplies = [
+          { id: 'reserve_yes', text: 'Reserve Viewing', value: 'reserve_viewing' },
+          { id: 'reserve_no', text: 'Not now', value: 'not_now' }
+        ];
+      } else {
+        quickReplies = [
+          ...quickReplies,
+          { id: 'reserve_yes', text: 'Reserve Viewing', value: 'reserve_viewing' }
+        ];
+      }
+      return { text: lines.join('\n'), aiImages: imgs, quickReplies };
     } else {
-      lines.push(`We don’t have anything within that range right now.`);
-      lines.push(`Most of our verified units start around ₵${minPrice.toLocaleString()}.`);
-      lines.push(`Want me to alert you when a budget deal comes in, or should I show close options?`);
+      lines.push("I can bring a strong value-focused option as soon as it lands.");
+      lines.push(`Most verified units start around GHS ${minPrice.toLocaleString()}.`);
+      lines.push("Should I alert you the moment one arrives?");
+      return {
+        text: lines.join('\n'),
+        aiImages: [],
+        quickReplies: [
+          { id: 'alert_yes2', text: 'Yes, alert me', value: 'alert_me' },
+          { id: 'alert_no2', text: 'Not now', value: 'not_now' }
+        ]
+      };
     }
-    return { text: lines.join('\n'), aiImages: imgs };
+    return { text: lines.join('\n'), aiImages: imgs, quickReplies };
   }
 
-  const typeOut = async (text: string, imgs?: string[], opts?: { showLocation?: boolean }) => {
+  const scheduleFollowUp = () => {
+    if (followUpTimerRef.current) {
+      clearTimeout(followUpTimerRef.current);
+      followUpTimerRef.current = null;
+    }
+    if (followUp24hRef.current) {
+      clearTimeout(followUp24hRef.current);
+      followUp24hRef.current = null;
+    }
+    if (followUp48hRef.current) {
+      clearTimeout(followUp48hRef.current);
+      followUp48hRef.current = null;
+    }
+
+    const tryNotify = async (title: string, body: string) => {
+      if (!('Notification' in window)) return;
+      if (Notification.permission !== 'granted') return;
+      try {
+        const reg = await navigator.serviceWorker?.ready;
+        if (reg?.showNotification) {
+          reg.showNotification(title, {
+            body,
+            icon: '/icons/icon-192.png',
+            badge: '/icons/icon-192.png'
+          });
+          return;
+        }
+      } catch {}
+      try {
+        new Notification(title, { body });
+      } catch {}
+    };
+
+    const triggerFollowUp = (kind: '24h' | '48h') => {
+      const text =
+        kind === '24h'
+          ? 'The options you viewed are still available. Would you like to reserve one?'
+          : 'Just checking in — want me to narrow this down to one best match?';
+      const quickReplies = kind === '24h'
+        ? [
+            { id: 'fu24_reserve', text: 'Reserve Viewing', value: 'reserve_viewing' },
+            { id: 'fu24_not', text: 'Not now', value: 'not_now' }
+          ]
+        : [
+            { id: 'fu48_narrow', text: 'Narrow to 1', value: 'narrow_one' },
+            { id: 'fu48_not', text: 'Not now', value: 'not_now' }
+          ];
+      const msg: Message = {
+        id: (Date.now() + (kind === '24h' ? 3 : 4)).toString(),
+        text,
+        sender: 'ai',
+        timestamp: new Date(),
+        isProactive: true,
+        quickReplies
+      };
+      setMessages(prev => [...prev, msg]);
+      logService.addMessageToSession(msg);
+      const title = kind === '24h' ? 'Drivemond Follow‑Up' : 'Drivemond Check‑In';
+      tryNotify(title, text);
+      try {
+        localStorage.setItem(kind === '24h' ? NOTIF_24_SENT_KEY : NOTIF_48_SENT_KEY, '1');
+      } catch {}
+    };
+
+    const now = Date.now();
+    const due24 = now + 24 * 60 * 60 * 1000;
+    const due48 = now + 48 * 60 * 60 * 1000;
+    try {
+      localStorage.setItem(NOTIF_24_DUE_KEY, String(due24));
+      localStorage.setItem(NOTIF_48_DUE_KEY, String(due48));
+      localStorage.setItem(NOTIF_24_SENT_KEY, '0');
+      localStorage.setItem(NOTIF_48_SENT_KEY, '0');
+    } catch {}
+    followUpTimerRef.current = window.setTimeout(() => {
+      const now = Date.now();
+      if (now - lastUserActivityRef.current < 90000) return;
+      if (now - lastAiActivityRef.current < 90000) return;
+      const followUpMsg: Message = {
+        id: (Date.now() + 2).toString(),
+        text: "Still with me? I can compare these options for you.",
+        sender: 'ai',
+        timestamp: new Date(),
+        isProactive: true,
+        quickReplies: [
+          { id: 'fu_compare', text: 'Compare Options', value: 'quick_comparison' },
+          { id: 'fu_not', text: 'Not now', value: 'not_now' }
+        ]
+      };
+      setMessages(prev => [...prev, followUpMsg]);
+      logService.addMessageToSession(followUpMsg);
+    }, 90000);
+
+    followUp24hRef.current = window.setTimeout(() => {
+      const t = Date.now();
+      if (t - lastUserActivityRef.current < 24 * 60 * 60 * 1000) return;
+      triggerFollowUp('24h');
+    }, 24 * 60 * 60 * 1000);
+
+    followUp48hRef.current = window.setTimeout(() => {
+      const t = Date.now();
+      if (t - lastUserActivityRef.current < 48 * 60 * 60 * 1000) return;
+      triggerFollowUp('48h');
+    }, 48 * 60 * 60 * 1000);
+  };
+
+  const typeOut = async (text: string, imgs?: string[], opts?: { showLocation?: boolean; quickReplies?: QuickReply[] }) => {
     setIsTyping(true);
     const id = (Date.now() + Math.random()).toString();
-    setMessages(prev => [...prev, { id, text: '', sender: 'ai', timestamp: new Date(), aiImages: imgs, showLocation: opts?.showLocation }]);
+    setMessages(prev => [...prev, { id, text: '', sender: 'ai', timestamp: new Date(), aiImages: imgs, showLocation: opts?.showLocation, quickReplies: opts?.quickReplies }]);
     await new Promise(r => setTimeout(r, 700));
     const words = text.split(' ');
     let current = '';
@@ -303,12 +894,74 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       await new Promise(r => setTimeout(r, delay));
     }
     setIsTyping(false);
-    const finalMsg: Message = { id, text, sender: 'ai', timestamp: new Date(), aiImages: imgs, showLocation: opts?.showLocation };
+    const finalMsg: Message = { id, text, sender: 'ai', timestamp: new Date(), aiImages: imgs, showLocation: opts?.showLocation, quickReplies: opts?.quickReplies };
     logService.addMessageToSession(finalMsg);
+    lastAiActivityRef.current = Date.now();
+    scheduleFollowUp();
+  };
+
+  const getLastBudget = (msgs: Message[]) => {
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].sender !== 'user') continue;
+      const b = parseBudget(msgs[i].text);
+      if (b) return b;
+    }
+    return undefined;
+  };
+
+  const getLastType = (msgs: Message[]) => {
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].sender !== 'user') continue;
+      const t = parseType(msgs[i].text);
+      if (t) return t;
+    }
+    return undefined;
+  };
+
+  const getLastProfile = (msgs: Message[]) => {
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].sender !== 'user') continue;
+      const p = parseBuyerProfile(msgs[i].text);
+      if (p) return p;
+    }
+    return undefined;
+  };
+
+  const getLastPriority = (msgs: Message[]) => {
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].sender !== 'user') continue;
+      const p = parsePriority(msgs[i].text);
+      if (p) return p;
+    }
+    return undefined;
+  };
+
+  const getLastFinancing = (msgs: Message[]) => {
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].sender !== 'user') continue;
+      const f = parseFinancing(msgs[i].text);
+      if (f) return f;
+    }
+    return undefined;
+  };
+
+  const computeLeadScore = (msgs: Message[]) => {
+    const userText = msgs.filter(m => m.sender === 'user').map(m => m.text).join(' ').toLowerCase();
+    let score = 0;
+    if (parseBuyerProfile(userText)) score += 10;
+    if (parsePriority(userText)) score += 10;
+    if (parseFinancing(userText)) score += 10;
+    if (parseType(userText)) score += 10;
+    if (parseBudget(userText)) score += 20;
+    if (userText.includes('compare') || userText.includes(' vs ') || userText.includes('versus')) score += 10;
+    if (userText.includes('test drive') || userText.includes('book') || userText.includes('viewing')) score += 25;
+    if (userText.includes('today') || userText.includes('this week')) score += 10;
+    return Math.min(100, score);
   };
 
   const handleSendMessage = async (text: string, attachment?: Attachment) => {
     if (!text.trim() && !attachment) return;
+    setIsAtBottom(true);
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -320,6 +973,12 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       replyPreview: replyingTo ? replyingTo.text.slice(0, 140) : undefined,
       readReceipt: 'sent'
     };
+    lastUserActivityRef.current = Date.now();
+    try { localStorage.setItem(LAST_ACTIVITY_KEY, String(lastUserActivityRef.current)); } catch {}
+    if (followUpTimerRef.current) {
+      clearTimeout(followUpTimerRef.current);
+      followUpTimerRef.current = null;
+    }
 
     if (attachment?.type === 'image') {
       const url = attachment.url;
@@ -328,18 +987,53 @@ export function ChatArea({ onClose }: ChatAreaProps) {
         try { localStorage.setItem('chat_bg_url', url); } catch {}
       }
     }
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
 
     const currentMessages = [...messages];
     setMessages(prev => [...prev, userMessage]);
     logService.addMessageToSession(userMessage);
+    const scoringMessages = [...currentMessages, userMessage];
+    const leadScore = computeLeadScore(scoringMessages);
+    const leadTemp = leadScore >= 70 ? 'hot' : leadScore >= 40 ? 'warm' : 'cold';
+    const lastScore = lastLeadScoreRef.current;
+    const lastTemp = lastScore === null ? null : (lastScore >= 70 ? 'hot' : lastScore >= 40 ? 'warm' : 'cold');
+    if (lastScore === null || Math.abs(leadScore - lastScore) >= 10 || lastTemp !== leadTemp) {
+      logService.addLog({
+        intent: 'lead_scoring',
+        lead_temperature: leadTemp,
+        lead_score: leadScore,
+        messageText: `Lead score updated: ${leadScore}`
+      });
+      lastLeadScoreRef.current = leadScore;
+    }
+    const lowerUser = text.toLowerCase();
+    if (lowerUser.includes('compare') || lowerUser.includes(' vs ') || lowerUser.includes('versus')) {
+      logService.addLog({
+        intent: 'compare_request',
+        lead_temperature: 'warm',
+        lead_score: leadScore,
+        messageText: text
+      });
+    }
+    if (lowerUser.includes('test drive')) {
+      logService.addLog({
+        intent: 'test_drive_request',
+        lead_temperature: 'hot',
+        lead_score: leadScore,
+        messageText: text
+      });
+    }
     setIsLoading(true);
     setReplyingTo(null);
     setPresetText('');
 
     try {
-      let responseText = await sendChatMessage(currentMessages, text, attachment);
+      let responseText = await sendChatMessage(currentMessages, text, attachment, leadInfo?.name);
       const aiImages: string[] = [];
       let bookingProposal: { carId: string; carName: string } | undefined;
+      let usedLocalDemo = false;
 
       const processJsonAction = (data: any, originalText: string) => {
         if (data.action === 'send_car_images' || data.action === 'send_car_image' || data.recommended_car_id) {
@@ -358,6 +1052,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
         }
         if (data.provider_used || data.fallback_used) {
           if (data.fallback_used) setUsingBackup(true);
+          if (data.provider_used === 'local_demo' || data.fallback_used) usedLocalDemo = true;
           logService.addLog({
             intent: `provider:${data.provider_used || 'unknown'}`,
             lead_temperature: 'cold',
@@ -368,6 +1063,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
           logService.addLog({
             intent: data.intent || 'unknown',
             lead_temperature: data.lead_temperature || 'unknown',
+            lead_score: typeof data.lead_score === 'number' ? data.lead_score : undefined,
             recommended_car_id: data.recommended_car_id,
             messageText: originalText
           });
@@ -399,21 +1095,26 @@ export function ChatArea({ onClose }: ChatAreaProps) {
 
       responseText = findAndStripJSON(responseText);
 
-      const isLocalDemo = responseText.includes('Local demo is running without AI');
-      if (isLocalDemo) {
-        const local = craftLocalReply(text);
+      const demoPhrase = responseText.toLowerCase().includes('abena here from drivemond');
+      let localQuickReplies: QuickReply[] | undefined;
+      if (usedLocalDemo || demoPhrase) {
+        const name = leadInfo?.name;
+        const shouldAddName = !!name && !nameGreeted;
+        const lastBudget = getLastBudget(currentMessages);
+        const lastProfile = getLastProfile(currentMessages);
+        const lastPriority = getLastPriority(currentMessages);
+        const lastFinancing = getLastFinancing(currentMessages);
+        const lastType = getLastType(currentMessages);
+        const local = craftLocalReply(text, name, shouldAddName, lastBudget, lastProfile, lastPriority, lastFinancing, lastType);
         responseText = local.text;
         aiImages.splice(0, aiImages.length, ...local.aiImages);
+        localQuickReplies = local.quickReplies;
       }
 
-      // CLIENT-SIDE FALLBACK: if user asked for all cars and AI didn't send images, inject all
       const allCarsKeywords = ['show me all', 'all cars', 'all the cars', 'full list', 'show all', 'list all', 'show your cars', 'what cars', 'your inventory', 'all models'];
       const askedForAll = allCarsKeywords.some(k => text.toLowerCase().includes(k));
-      if (askedForAll && aiImages.length === 0) {
-        CAR_DATABASE.forEach(car => {
-          const imgUrl = (car as any).real_image || car.image_url;
-          if (!aiImages.includes(imgUrl)) aiImages.push(imgUrl);
-        });
+      if (!askedForAll && aiImages.length > 2) {
+        aiImages.splice(2);
       }
 
       setIsLoading(false);
@@ -427,6 +1128,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
         id: aiMsgId, text: '', sender: 'ai', timestamp: new Date(),
         aiImages: aiImages.length > 0 ? aiImages : undefined,
         bookingProposal,
+        quickReplies: localQuickReplies,
         showLocation: isLocationQueryEarly
       };
       setMessages(prev => [...prev, aiMsg]);
@@ -452,12 +1154,15 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       const finalMsg: Message = {
         id: aiMsgId, text: responseText, sender: 'ai', timestamp: new Date(),
         aiImages: aiImages.length > 0 ? aiImages : undefined, bookingProposal,
+        quickReplies: localQuickReplies,
         showLocation: isLocationQueryEarly
       };
 
-      // Keep conversation human — no extra quick replies after the first choice
+      // Keep conversation human â€” no extra quick replies after the first choice
 
       logService.addMessageToSession(finalMsg);
+      lastAiActivityRef.current = Date.now();
+      scheduleFollowUp();
 
       if (autoRead && 'speechSynthesis' in window) {
         window.speechSynthesis.speak(new SpeechSynthesisUtterance(responseText));
@@ -475,7 +1180,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
         const imgs = CAR_DATABASE.map(c => (c as any).real_image || c.image_url);
         const aiMsg: Message = {
           id: (Date.now() + 1).toString(),
-          text: "Network is acting up.\nSharing our current lineup now.\nPick what catches your eye 👀",
+          text: "Network is acting up.\nSharing our current lineup now.\nPick what catches your eye ðŸ‘€",
           sender: 'ai',
           timestamp: new Date(),
           aiImages: imgs
@@ -486,13 +1191,15 @@ export function ChatArea({ onClose }: ChatAreaProps) {
         const is401 = /401/.test(String(msg));
         const helpful =
           is401
-            ? "Authorization error (401).\nIf you added an API key, verify it’s valid and allowed for this site.\nQuick fix: clear any OPENROUTER_API_KEY/APIFREELLM_API_KEY from your browser storage, or add a valid key in .env as VITE_OPENROUTER_API_KEY or VITE_APIFREELLM_API_KEY.\nThen refresh and try again."
+            ? "Authorization error (401).\nIf you added an API key, verify itâ€™s valid and allowed for this site.\nQuick fix: clear any OPENROUTER_API_KEY/APIFREELLM_API_KEY from your browser storage, or add a valid key in .env as VITE_OPENROUTER_API_KEY or VITE_APIFREELLM_API_KEY.\nThen refresh and try again."
             : `Sorry, there was an error. ${msg}`;
         setMessages(prev => [...prev, {
           id: (Date.now() + 1).toString(),
           text: helpful,
           sender: 'ai', timestamp: new Date()
         }]);
+        setErrorToast(is401 ? 'Authorization error. Check API key.' : 'Something went wrong. Please try again.');
+        setTimeout(() => setErrorToast(null), 3000);
       }
     } finally {
       setIsLoading(false);
@@ -534,28 +1241,130 @@ export function ChatArea({ onClose }: ChatAreaProps) {
 
   const handleQuickReplySelect = async (value: string, text: string) => {
     setPresetText('');
+    if (value === 'send_contact') {
+      openWhatsApp();
+      return;
+    }
     if (value === 'find_car') {
       setFlow({ stage: 'idle' });
-      await typeOut("Let’s keep it natural.\nTell me your budget, the car type (SUV/Sedan/Luxury), and when you need it.\nI’ll suggest the best options fast 🚗");
+      await typeOut("Tell me your budget range and the type you want. Iâ€™ll suggest the best fit.");
       return;
     }
     if (value === 'view_inventory') {
       const imgs = CAR_DATABASE.map(c => ((c as any).real_image || c.image_url));
-      await typeOut('Here’s our current lineup. Which one catches your eye? 👀', imgs);
+      await typeOut('Hereâ€™s our current lineup. Which one catches your eye? ðŸ‘€', imgs);
       return;
     }
     if (value === 'book_viewing') {
       setBookingModal({ carId: CAR_DATABASE[0].id, carName: `${CAR_DATABASE[0].brand} ${CAR_DATABASE[0].model}` });
-      await typeOut('Share the car you want and a preferred date/time. I’ll lock it in.');
+      logService.addLog({
+        intent: 'test_drive_click',
+        lead_temperature: 'hot',
+        messageText: 'Quick reply: book_viewing'
+      });
+      await typeOut(
+        'Would you prefer a weekday or weekend viewing?',
+        undefined,
+        {
+          quickReplies: [
+            { id: 'view_weekday', text: 'Weekday', value: 'weekday' },
+            { id: 'view_weekend', text: 'Weekend', value: 'weekend' }
+          ]
+        }
+      );
+      return;
+    }
+    if (value === 'reserve_viewing') {
+      setBookingModal({ carId: CAR_DATABASE[0].id, carName: `${CAR_DATABASE[0].brand} ${CAR_DATABASE[0].model}` });
+      await typeOut(
+        'Would you prefer a weekday or weekend viewing?',
+        undefined,
+        {
+          quickReplies: [
+            { id: 'view_weekday2', text: 'Weekday', value: 'weekday' },
+            { id: 'view_weekend2', text: 'Weekend', value: 'weekend' }
+          ]
+        }
+      );
+      return;
+    }
+    if (value === 'under_100k') {
+      handleSendMessage('100000');
+      return;
+    }
+    if (value === '150000') {
+      handleSendMessage('150000');
+      return;
+    }
+    if (value === '200000') {
+      handleSendMessage('200000');
+      return;
+    }
+    if (value === '250000') {
+      handleSendMessage('250000');
+      return;
+    }
+    if (value === '300000+') {
+      handleSendMessage('300000');
       return;
     }
     if (value === 'location') {
-      await typeOut('📍 East Legon, Accra.\nAsk me for directions or tap the map.', undefined, { showLocation: true });
+      await typeOut('ðŸ“ East Legon, Accra.\nAsk me for directions or tap the map.', undefined, { showLocation: true });
+      return;
+    }
+    if (value === 'directions' || value === 'send_pin') {
+      await typeOut('ðŸ“ East Legon, Accra.\nHere is our location on the map.', undefined, { showLocation: true });
       return;
     }
     if (value === 'talk_sales') {
-      await typeOut('Speak directly with our sales manager 📞 +233504512884 — quick and easy.');
+      await typeOut('Speak directly with our sales manager ðŸ“ž +233504512884 â€” quick and easy.');
       setShowHandoff(true);
+      return;
+    }
+    if (value === 'help_decide') {
+      await typeOut(
+        "Happy to help. Which decision feels closest?",
+        undefined,
+        {
+          quickReplies: [
+            { id: 'hd_suv_sedan', text: 'Sedan vs SUV', value: 'Sedan vs SUV' },
+            { id: 'hd_budget_comfort', text: 'Budget vs Comfort', value: 'Budget vs Comfort' },
+            { id: 'hd_fuel_space', text: 'Fuel Savings vs Space', value: 'Fuel Savings vs Space' }
+          ]
+        }
+      );
+      return;
+    }
+    if (value === 'show_photos') {
+      handleSendMessage('show photos');
+      return;
+    }
+    if (value === 'more_options') {
+      handleSendMessage('what else');
+      return;
+    }
+    if (value === 'quick_comparison') {
+      handleSendMessage('compare options');
+      return;
+    }
+    if (value === 'save_option') {
+      handleSendMessage('save this option');
+      return;
+    }
+    if (value === 'alert_me') {
+      handleSendMessage('alert me');
+      return;
+    }
+    if (value === 'finance_yes') {
+      handleSendMessage('finance_yes');
+      return;
+    }
+    if (value === 'not_now') {
+      handleSendMessage('not now');
+      return;
+    }
+    if (value === 'weekday' || value === 'weekend') {
+      handleSendMessage(value);
       return;
     }
     handleSendMessage(value);
@@ -600,24 +1409,38 @@ export function ChatArea({ onClose }: ChatAreaProps) {
             referrerPolicy="no-referrer"
           />
           <div className="flex flex-col min-w-0">
-            <h2 className="text-[15px] font-semibold text-[#e9edef] leading-tight truncate">
-              Abena{leadInfo ? ` · ${leadInfo.name}` : ''}
-              <span className="ml-2 inline-block align-middle text-[10px] font-black text-[#00a884] bg-[#003d32] px-2 py-0.5 rounded-full border border-[#05846e]">
-                Modern UI
-              </span>
-              <span className={`ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-black ${netOnline ? 'text-[#25D366] bg-[#003d32] border-[#05846e]' : 'text-[#8696a0] bg-[#2a3942] border-[#3d4f5c]'}`}>
-                <span className={`inline-block w-1.5 h-1.5 rounded-full ${netOnline ? 'bg-[#25D366]' : 'bg-[#8696a0]'}`} />
-                {netOnline ? 'Online' : 'Offline'}
-              </span>
+            <div className="flex items-center gap-2 min-w-0">
+              <h2 className="text-[15px] font-semibold text-[#e9edef] leading-tight truncate">
+                Abena
+              </h2>
+              {leadInfo?.name && (
+                <span className="inline-block align-middle text-[10px] font-black text-[#E8E6E1] bg-[#2a2a2a] px-2 py-0.5 rounded-full border border-[#3a3a3a] truncate">
+                  {leadInfo.name}
+                </span>
+              )}
               {usingBackup && (
-                <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-black text-yellow-300 bg-yellow-900/30 border-yellow-700">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-black text-yellow-300 bg-yellow-900/30 border-yellow-700">
                   Using backup
                 </span>
               )}
-            </h2>
-            <p className={cn("text-[11px] mt-0.5 transition-colors truncate", isTyping ? "text-[#00a884] font-medium" : "text-[#8696a0]")}>
-              {isTyping ? "typing..." : "Drivemond Sales"}
-            </p>
+            </div>
+            <div className={cn("flex items-center gap-1.5 text-[11px] mt-0.5 truncate", isTyping ? "text-[#00a884] font-medium" : "text-[#8696a0]")}>
+              {isTyping ? (
+                <div className="flex items-center gap-1">
+                  <span>typing</span>
+                  <span className="typing-dots">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <span className={`inline-block w-1.5 h-1.5 rounded-full ${netOnline ? 'bg-[#00E676]' : 'bg-[#8696a0]'}`} />
+                  {netOnline ? 'Online' : 'Offline'} · Drivemond Sales
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -633,14 +1456,6 @@ export function ChatArea({ onClose }: ChatAreaProps) {
             </svg>
           </button>
 
-          {/* Calculator */}
-          <button
-            onClick={() => setShowCalculator(prev => !prev)}
-            title="Payment Calculator"
-            className={cn("p-1 rounded-[6%] transition-colors", showCalculator ? "bg-[#3b4a54] text-[#00a884]" : "hover:bg-[#3b4a54]")}
-          >
-            <Calculator className="w-[18px] h-[18px]" />
-          </button>
 
           {/* Auto Read */}
           <button
@@ -651,16 +1466,13 @@ export function ChatArea({ onClose }: ChatAreaProps) {
             {autoRead ? <Volume2 className="w-[18px] h-[18px]" /> : <VolumeX className="w-[18px] h-[18px]" />}
           </button>
 
-          {/* Video hidden on mobile */}
-          <button onClick={startCall} className="hover:bg-[#3b4a54] p-1 rounded-[6%] transition-colors hidden sm:flex">
-            <Video className="w-[18px] h-[18px]" />
-          </button>
+          {/* Video icon removed */}
 
-          {/* Phone */}
-          <button onClick={startCall} className="hover:bg-[#3b4a54] p-1 rounded-[6%] transition-colors">
-            <Phone className="w-[18px] h-[18px]" />
+          {/* Phone button removed */}
+          <button onClick={downloadTranscript} title="Download Transcript" className="hover:bg-[#3b4a54] p-1 rounded-[6%] transition-colors">
+            <Download className="w-[16px] h-[16px]" />
           </button>
-          <button onClick={finalizeSession} title="Finish & Send Transcript" className="hover:bg-[#3b4a54] p-1 rounded-[6%] transition-colors">
+          <button onClick={finalizeSession} title="Email Transcript" className="hover:bg-[#3b4a54] p-1 rounded-[6%] transition-colors">
             <Share2 className="w-[16px] h-[16px]" />
           </button>
 
@@ -701,19 +1513,31 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4 z-10 min-h-0 custom-scroll">
+      <div
+        ref={messagesContainerRef}
+        onScroll={() => {
+          const el = messagesContainerRef.current;
+          if (!el) return;
+          const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+          setIsAtBottom(atBottom);
+        }}
+        className="flex-1 overflow-y-auto p-3 sm:p-4 z-10 min-h-0 custom-scroll"
+      >
+        {/* Error toast */}
+        {errorToast && (
+          <div className="fixed left-1/2 -translate-x-1/2 top-20 z-[1001] bg-[#202c33] border border-[#2f3b43] text-[#e9edef] text-xs px-3 py-2 rounded-full shadow-lg">
+            {errorToast}
+          </div>
+        )}
+
         {/* Jump to latest */}
-        {!isTyping && (
+        {!isAtBottom && (
           <button
             onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })}
-            className="fixed right-4 bottom-24 bg-[#2a3942] text-white text-xs px-2 py-1 rounded-lg border border-[#3d4f5c] shadow hover:bg-[#3d4f5c] transition"
+            className="fixed right-4 bottom-24 bg-[#1f2c34] text-[#e9edef] text-xs px-3 py-1.5 rounded-full border border-[#2f3b43] shadow hover:bg-[#2a3942] transition"
           >
             Jump to latest
           </button>
-        )}
-        {/* Payment Calculator (inline) */}
-        {showCalculator && (
-          <PaymentCalculator onClose={() => setShowCalculator(false)} />
         )}
 
         <div className="flex flex-col space-y-1 max-w-3xl mx-auto">
@@ -722,6 +1546,21 @@ export function ChatArea({ onClose }: ChatAreaProps) {
               <div className="bg-[#ffeecd] text-gray-700 text-xs px-4 py-2 rounded-lg shadow-sm text-center max-w-xs">
                 Messages are end-to-end encrypted.
               </div>
+            </div>
+          )}
+          {messages.length > 0 && (
+            <div className="flex justify-center my-2">
+              <button
+                onClick={() => {
+                  setMessages([]);
+                  setShowHandoff(false);
+                  setBookingModal(null);
+                  setReplyingTo(null);
+                }}
+                className="text-[11px] px-3 py-1.5 rounded-full border border-[#2f3b43] text-[#aebac1] hover:bg-[#1f2c34] transition"
+              >
+                New chat
+              </button>
             </div>
           )}
 
@@ -751,18 +1590,18 @@ export function ChatArea({ onClose }: ChatAreaProps) {
         </div>
       </div>
 
-      {/* Sales Specialist Handoff — only shows after booking or strong purchase intent */}
+      {/* Sales Specialist Handoff â€” only shows after booking or strong purchase intent */}
       {showHandoff && (
         <div className="flex-shrink-0 px-3 py-2.5 bg-[#0d2b1f] border-t border-[#1a3a2a] flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[#4ade80] text-[12px] font-bold leading-tight">🚗 Take the Next Step</p>
+            <p className="text-[#4ade80] text-[12px] font-bold leading-tight">ðŸš— Take the Next Step</p>
             <p className="text-[#8696a0] text-[10px] mt-0.5 leading-tight">Connect with a Sales Specialist to finalise details</p>
           </div>
           <a
             href="tel:+233504512884"
-            className="flex-shrink-0 bg-[#25D366] hover:bg-[#20bd5a] active:scale-95 text-white text-[11px] font-black px-3 py-2 rounded-xl transition-all whitespace-nowrap shadow-md"
+            className="flex-shrink-0 bg-[#0b141a] border-2 border-[#25D366] text-[#25D366] hover:bg-[#25D366]/10 active:scale-95 text-[11px] font-black px-3 py-2 rounded-xl transition-all whitespace-nowrap shadow-md"
           >
-            Speak to Sales →
+            Speak to Sales â†’
           </a>
         </div>
       )}
@@ -795,7 +1634,27 @@ export function ChatArea({ onClose }: ChatAreaProps) {
           scrollbar-width: thin;
           scrollbar-color: #3d4f5c #0b141a;
         }
+        .typing-dots {
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+        }
+        .typing-dots span {
+          width: 4px;
+          height: 4px;
+          border-radius: 999px;
+          background: #00a884;
+          opacity: 0.4;
+          animation: typingDot 1.2s infinite ease-in-out;
+        }
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typingDot {
+          0%, 100% { opacity: 0.3; transform: translateY(0); }
+          50% { opacity: 1; transform: translateY(-2px); }
+        }
       `}</style>
     </div>
   );
 }
+

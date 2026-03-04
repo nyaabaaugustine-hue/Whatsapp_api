@@ -31,6 +31,7 @@ export interface TrackingLog {
   timestamp: Date;
   intent: string;
   lead_temperature: string;
+  lead_score?: number;
   recommended_car_id?: string;
   messageText: string;
 }

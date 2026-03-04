@@ -1,4 +1,4 @@
-import tailwindcss from '@tailwindcss/vite';
+﻿import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => {
               res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
               return res.end();
             }
-            // ── DEV: /api/log ───────────────────────────────────────────────
+            // â”€â”€ DEV: /api/log â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if (req.url?.startsWith('/api/log')) {
               res.setHeader('Access-Control-Allow-Origin', '*');
               res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
@@ -60,7 +60,7 @@ export default defineConfig(({ mode }) => {
                 }
               }
             }
-            // ── DEV: /api/admin ─────────────────────────────────────────────
+            // â”€â”€ DEV: /api/admin â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if (req.url?.startsWith('/api/admin') && req.method === 'GET') {
               res.setHeader('Access-Control-Allow-Origin', '*');
               res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -220,7 +220,7 @@ export default defineConfig(({ mode }) => {
                   });
                 } else {
                   const reply =
-                    "Hey! 👋 Abena here from Drivemond.\n\nLocal demo is running without AI right now.\nTell me your budget and car type, and I’ll suggest options.";
+                    "Hello, Abena here from Drivemond.\nTell me your budget and the kind of car you want.";
                   res.statusCode = 200;
                   return res.end(JSON.stringify({ response: reply }));
                 }
@@ -255,3 +255,4 @@ export default defineConfig(({ mode }) => {
     },
   };
 });
+

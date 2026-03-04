@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, Download, Calendar, Thermometer, Target, Clock, Hash, Database, LogOut } from 'lucide-react';
+import { X, Download, Calendar, Thermometer, Target, Clock, Hash, Database, LogOut, Search, PhoneCall, Tag, Bell, FileText, Send, Plus, User } from 'lucide-react';
 import { AdminLogin } from '../components/AdminLogin';
+import { CAR_DATABASE } from '../data/cars';
 
 const ADMIN_KEY = import.meta.env.VITE_ADMIN_SECRET || 'drivemond2026';
 
@@ -8,6 +9,10 @@ interface Stats { totalSessions: number; totalMessages: number; hotLeads: number
 interface Message { session_id: string; role: 'user' | 'assistant'; content: string; metadata: any; created_at: string; }
 interface Event { id?: string; session_id: string; event_type: string; event_data: any; lead_temperature: string; intent: string; created_at: string; }
 interface Conversation { session_id: string; started_at: string; last_message_at: string; message_count: number; messages: Message[]; }
+interface LeadProfile { name?: string; phone?: string; budget?: number; type?: string; }
+interface Reminder { id: string; session_id: string; when: string; note: string; created_at: string; done?: boolean; notified?: boolean; }
+interface AuditEntry { id: string; at: string; action: string; session_id?: string; detail?: string; }
+interface Template { id: string; text: string; }
 
 const TEMP_COLORS: Record<string, string> = {
   hot: 'bg-red-500/20 text-red-400 border border-red-500/30',
@@ -178,6 +183,24 @@ export default function AdminDashboard() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [lastChecked, setLastChecked] = useState<Date>(new Date(0));
+  const [adminMsg, setAdminMsg] = useState('');
+  const [search, setSearch] = useState('');
+  const [leadFilter, setLeadFilter] = useState<'all'|'hot'|'warm'|'cold'>('all');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [tags, setTags] = useState<Record<string, string[]>>({});
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
+  const [readMap, setReadMap] = useState<Record<string, string>>({});
+  const [templates, setTemplates] = useState<Template[]>([
+    { id: 't1', text: 'Thanks for your message. What is your budget range in GHS?' },
+    { id: 't2', text: 'Do you prefer SUV, sedan, or pickup?' },
+    { id: 't3', text: 'We are on Spintex Road, Accra. Would you like a map pin?' },
+  ]);
+  const [reminderNote, setReminderNote] = useState('');
+  const [reminderWhen, setReminderWhen] = useState('');
 
   const fetchData = useCallback(async () => {
     if (!authed) return;
@@ -192,14 +215,60 @@ export default function AdminDashboard() {
       if (statsRes.ok) setStats(await statsRes.json());
       if (convosRes.ok) setConversations(await convosRes.json());
       if (eventsRes.ok) setEvents(await eventsRes.json());
+      setLastChecked(lastRefresh);
       setLastRefresh(new Date());
     } catch (e) { console.error('Failed to fetch', e); }
     setLoading(false);
-  }, [authed]);
+  }, [authed, lastRefresh]);
 
   useEffect(() => {
     if (authed) { fetchData(); const i = setInterval(fetchData, 30000); return () => clearInterval(i); }
   }, [authed, fetchData]);
+
+  useEffect(() => {
+    try {
+      const rawN = localStorage.getItem('__adm_notes__');
+      const rawT = localStorage.getItem('__adm_tags__');
+      if (rawN) setNotes(JSON.parse(rawN));
+      if (rawT) setTags(JSON.parse(rawT));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('__adm_notes__', JSON.stringify(notes));
+      localStorage.setItem('__adm_tags__', JSON.stringify(tags));
+    } catch {}
+  }, [notes, tags]);
+
+  useEffect(() => {
+    try {
+      const rawR = localStorage.getItem('__adm_reminders__');
+      const rawA = localStorage.getItem('__adm_audit__');
+      const rawRead = localStorage.getItem('__adm_read__');
+      const rawTemplates = localStorage.getItem('__adm_templates__');
+      if (rawR) setReminders(JSON.parse(rawR));
+      if (rawA) setAuditLog(JSON.parse(rawA));
+      if (rawRead) setReadMap(JSON.parse(rawRead));
+      if (rawTemplates) setTemplates(JSON.parse(rawTemplates));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem('__adm_reminders__', JSON.stringify(reminders)); } catch {}
+  }, [reminders]);
+
+  useEffect(() => {
+    try { localStorage.setItem('__adm_audit__', JSON.stringify(auditLog)); } catch {}
+  }, [auditLog]);
+
+  useEffect(() => {
+    try { localStorage.setItem('__adm_read__', JSON.stringify(readMap)); } catch {}
+  }, [readMap]);
+
+  useEffect(() => {
+    try { localStorage.setItem('__adm_templates__', JSON.stringify(templates)); } catch {}
+  }, [templates]);
 
   // Derived bookings from events
   const bookingEvents = events.filter(e => e.event_type === 'booking');
@@ -235,6 +304,22 @@ export default function AdminDashboard() {
   const messageCount = conversations.reduce((acc, c) => acc + c.message_count, 0);
   const periodMessageCount = periodConvos.reduce((acc, c) => acc + c.message_count, 0);
   const messageTrend = trend(periodMessageCount, messageCount || 1);
+  const avgResponseSec = (() => {
+    const deltas: number[] = [];
+    periodConvos.forEach(c => {
+      for (let i = 0; i < c.messages.length - 1; i++) {
+        const a = c.messages[i];
+        const b = c.messages[i + 1];
+        if (a.role === 'user' && b.role === 'assistant') {
+          const d = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          if (d > 0 && d < 1000 * 60 * 30) deltas.push(d);
+        }
+      }
+    });
+    if (deltas.length === 0) return 0;
+    const avg = deltas.reduce((s, v) => s + v, 0) / deltas.length;
+    return Math.round(avg / 1000);
+  })();
   const leadBuckets = {
     hot: periodEvents.filter(e => e.lead_temperature === 'hot').length,
     warm: periodEvents.filter(e => e.lead_temperature === 'warm').length,
@@ -271,9 +356,214 @@ export default function AdminDashboard() {
     }
   };
 
+  const addAudit = useCallback((action: string, detail?: string, session_id?: string) => {
+    const entry: AuditEntry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      at: new Date().toISOString(),
+      action,
+      session_id,
+      detail,
+    };
+    setAuditLog(prev => [entry, ...prev].slice(0, 300));
+  }, []);
+
+  const sendAdminMessage = async () => {
+    if (!selectedConvo || !adminMsg.trim()) return;
+    const payload = {
+      eventType: 'message',
+      sessionId: selectedConvo.session_id,
+      data: { sender: 'assistant', text: adminMsg.trim() },
+      timestamp: new Date().toISOString(),
+    };
+    try {
+      await fetch('/api/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    } catch {}
+    const newMessage: Message = {
+      session_id: selectedConvo.session_id,
+      role: 'assistant',
+      content: adminMsg.trim(),
+      metadata: null,
+      created_at: new Date().toISOString(),
+    };
+    setSelectedConvo(prev => prev ? { ...prev, messages: [...prev.messages, newMessage], message_count: prev.message_count + 1, last_message_at: newMessage.created_at } : prev);
+    setConversations(prev => prev.map(c => c.session_id === selectedConvo.session_id
+      ? { ...c, messages: [...c.messages, newMessage], message_count: c.message_count + 1, last_message_at: newMessage.created_at }
+      : c
+    ));
+    setAdminMsg('');
+    addAudit('admin_message_sent', adminMsg.trim(), selectedConvo.session_id);
+  };
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setReminders(prev => prev.map(r => {
+        if (r.done || r.notified) return r;
+        const when = new Date(r.when).getTime();
+        if (!Number.isFinite(when) || when > now) return r;
+        if ('Notification' in window && Notification.permission === 'granted') {
+          try {
+            new Notification('Follow-up reminder', {
+              body: r.note ? `${r.note} (Session ${r.session_id.slice(0, 8)}...)` : `Session ${r.session_id.slice(0, 8)}...`,
+            });
+          } catch {}
+        }
+        addAudit('reminder_due', r.note || 'follow-up', r.session_id);
+        return { ...r, notified: true };
+      }));
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [addAudit]);
+
   if (!authed) {
     return <AdminLogin onAuth={() => setAuthed(true)} />;
   }
+
+  const eventBySession = (() => {
+    const m: Record<string, Event> = {};
+    events.forEach(e => {
+      const prev = m[e.session_id];
+      if (!prev || new Date(e.created_at) > new Date(prev.created_at)) m[e.session_id] = e;
+    });
+    return m;
+  })();
+
+  const leadTempForSession = (sid: string) => eventBySession[sid]?.lead_temperature || 'unknown';
+  const intentForSession = (sid: string) => eventBySession[sid]?.intent || 'unknown';
+
+  const parseBudgetFromText = (text: string) => {
+    const match = text.match(/(\d[\d,.\s]*)/);
+    if (!match) return undefined;
+    const raw = match[1].replace(/[,.\s]/g, '');
+    const val = parseInt(raw, 10);
+    if (Number.isNaN(val)) return undefined;
+    return val;
+  };
+
+  const parseTypeFromText = (text: string) => {
+    const t = text.toLowerCase();
+    if (t.includes('suv')) return 'SUV';
+    if (t.includes('sedan')) return 'Sedan';
+    if (t.includes('pickup')) return 'Pickup';
+    if (t.includes('truck') || t.includes('load')) return 'Pickup';
+    if (t.includes('luxury')) return 'Luxury';
+    return undefined;
+  };
+
+  const buildLeadProfile = (convo: Conversation | null): LeadProfile => {
+    if (!convo) return {};
+    const profile: LeadProfile = {};
+    const eventsForSession = events.filter(e => e.session_id === convo.session_id && e.event_type === 'tracking_log');
+    const leadCapture = eventsForSession.find(e => String(e.event_data?.messageText || '').toLowerCase().includes('lead captured'));
+    if (leadCapture) {
+      const msg = String(leadCapture.event_data?.messageText || '');
+      const parts = msg.split(':')[1]?.split('|').map(s => s.trim());
+      if (parts && parts[0]) profile.name = parts[0];
+      if (parts && parts[1]) profile.phone = parts[1];
+    }
+    for (let i = convo.messages.length - 1; i >= 0; i--) {
+      const m = convo.messages[i];
+      if (m.role !== 'user') continue;
+      if (!profile.budget) profile.budget = parseBudgetFromText(m.content);
+      if (!profile.type) profile.type = parseTypeFromText(m.content);
+      if (profile.budget && profile.type) break;
+    }
+    return profile;
+  };
+
+  const filteredConversations = conversations.filter(c => {
+    if (leadFilter !== 'all' && leadTempForSession(c.session_id) !== leadFilter) return false;
+    if (search) {
+      const s = search.toLowerCase();
+      const inMessages = c.messages.some(m => (m.content || '').toLowerCase().includes(s));
+      if (!c.session_id.toLowerCase().includes(s) && !inMessages) return false;
+    }
+    if (dateFrom) {
+      const df = new Date(dateFrom);
+      if (new Date(c.last_message_at) < df) return false;
+    }
+    if (dateTo) {
+      const dt = new Date(dateTo);
+      dt.setHours(23,59,59,999);
+      if (new Date(c.last_message_at) > dt) return false;
+    }
+    return true;
+  });
+
+  const hotLeads = conversations.filter(c => leadTempForSession(c.session_id) === 'hot');
+
+  const topModels = (() => {
+    const counts: Record<string, number> = {};
+    const models = CAR_DATABASE.map(c => `${c.brand} ${c.model}`.toLowerCase());
+    conversations.forEach(c => {
+      c.messages.forEach(m => {
+        const t = (m.content || '').toLowerCase();
+        models.forEach((name, idx) => {
+          if (t.includes(name)) counts[name] = (counts[name] || 0) + 1;
+        });
+      });
+    });
+    return Object.entries(counts)
+      .sort((a,b)=>b[1]-a[1])
+      .slice(0,5)
+      .map(([name,count])=>({ name, count }));
+  })();
+
+  const scheduleReminder = () => {
+    if (!selectedConvo || !reminderWhen) return;
+    const entry: Reminder = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      session_id: selectedConvo.session_id,
+      when: reminderWhen,
+      note: reminderNote.trim(),
+      created_at: new Date().toISOString(),
+    };
+    setReminders(prev => [entry, ...prev].slice(0, 500));
+    setReminderNote('');
+    setReminderWhen('');
+    addAudit('reminder_scheduled', entry.note || 'follow-up', selectedConvo.session_id);
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+  };
+
+  const exportConversation = (convo: Conversation) => {
+    const safe = convo.messages.map(m => ({
+      role: m.role,
+      content: m.content,
+      created_at: m.created_at,
+    }));
+    exportJSON(safe, `conversation-${convo.session_id}.json`);
+    addAudit('conversation_exported', 'json', convo.session_id);
+  };
+
+  const exportConversationText = (convo: Conversation) => {
+    const lines = convo.messages.map(m => `${m.role === 'user' ? 'Client' : 'Abena'}: ${m.content}`);
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `conversation-${convo.session_id}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    addAudit('conversation_exported', 'text', convo.session_id);
+  };
+
+  const dropOff = (() => {
+    let afterAssistant = 0;
+    let afterUser = 0;
+    conversations.forEach(c => {
+      const last = c.messages[c.messages.length-1];
+      if (!last) return;
+      if (last.role === 'assistant') afterAssistant++;
+      else afterUser++;
+    });
+    return { afterAssistant, afterUser };
+  })();
 
   return (
     <div className="min-h-screen bg-[#0b141a] text-white">
@@ -312,6 +602,26 @@ export default function AdminDashboard() {
         {/* ── OVERVIEW ── */}
         {tab === 'overview' && (
           <div>
+            {/* Filters */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+              <div className="bg-[#1f2c34] border border-[#2f3b43] rounded-lg px-3 py-2 flex items-center gap-2">
+                <Search className="w-4 h-4 text-[#8696a0]" />
+                <input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search sessions or messages"
+                  className="bg-transparent text-sm text-white outline-none w-full"
+                />
+              </div>
+              <select value={leadFilter} onChange={e => setLeadFilter(e.target.value as any)} className="bg-[#1f2c34] border border-[#2f3b43] rounded-lg px-3 py-2 text-sm text-white">
+                <option value="all">All leads</option>
+                <option value="hot">Hot leads</option>
+                <option value="warm">Warm leads</option>
+                <option value="cold">Cold leads</option>
+              </select>
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="bg-[#1f2c34] border border-[#2f3b43] rounded-lg px-3 py-2 text-sm text-white" />
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="bg-[#1f2c34] border border-[#2f3b43] rounded-lg px-3 py-2 text-sm text-white" />
+            </div>
             <div className="flex items-center justify-between mb-4">
               <div className="text-gray-300 font-semibold">Performance Overview</div>
               <div className="flex items-center gap-2">
@@ -320,7 +630,7 @@ export default function AdminDashboard() {
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4 mb-6">
               {[
                 { label: 'Total Sessions', value: periodConvos.length, trend: sessionTrend, data: sparkSessions, color: 'text-white' },
                 { label: 'Messages', value: periodMessageCount, trend: messageTrend, data: sparkEvents, color: 'text-white' },
@@ -328,6 +638,7 @@ export default function AdminDashboard() {
                 { label: 'Warm Leads', value: leadBuckets.warm, trend: 0, data: sparkEvents, color: 'text-yellow-400' },
                 { label: 'Cold Leads', value: leadBuckets.cold, trend: 0, data: sparkEvents, color: 'text-blue-400' },
                 { label: 'Bookings', value: periodBookings.length, trend: bookingTrend, data: sparkBookings, color: 'text-green-400' },
+                { label: 'Avg Response (s)', value: avgResponseSec, trend: 0, data: sparkEvents, color: 'text-white' },
               ].map((card,i) => (
                 <div key={i} className="bg-[#111b21]/80 backdrop-blur rounded-xl p-4 border border-[#2f3b43] shadow-lg hover:shadow-xl transition">
                   <div className="flex items-baseline justify-between">
@@ -403,6 +714,74 @@ export default function AdminDashboard() {
               </div>
             </div>
 
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+              <div className="bg-[#1f2c34] border border-[#2f3b43] rounded-xl p-5">
+                <h3 className="text-sm font-semibold text-gray-300 mb-3">Lead Pipeline</h3>
+                <div className="space-y-2">
+                  {(['cold','warm','hot','booked'] as const).map(stage => (
+                    <div key={stage} className="flex items-center justify-between text-xs bg-[#0b141a] border border-[#2f3b43] rounded-lg px-3 py-2">
+                      <span className="capitalize text-gray-300">{stage}</span>
+                      <span className="text-white font-semibold">
+                        {stage === 'booked' ? periodBookings.length : leadBuckets[stage as 'cold'|'warm'|'hot']}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-[#1f2c34] border border-[#2f3b43] rounded-xl p-5">
+                <h3 className="text-sm font-semibold text-gray-300 mb-3">Top Requested Models</h3>
+                {topModels.length === 0 ? (
+                  <p className="text-gray-500 text-sm">No model data yet.</p>
+                ) : (
+                  <div className="space-y-2 text-xs">
+                    {topModels.map((m, i) => (
+                      <div key={i} className="flex items-center justify-between bg-[#0b141a] border border-[#2f3b43] rounded-lg px-3 py-2">
+                        <span className="text-gray-300 capitalize">{m.name}</span>
+                        <span className="text-white font-semibold">{m.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-[#1f2c34] border border-[#2f3b43] rounded-xl p-5">
+                <h3 className="text-sm font-semibold text-gray-300 mb-3">Drop-off Points</h3>
+                <div className="space-y-2 text-xs">
+                  <div className="flex items-center justify-between bg-[#0b141a] border border-[#2f3b43] rounded-lg px-3 py-2">
+                    <span className="text-gray-300">After Assistant Reply</span>
+                    <span className="text-white font-semibold">{dropOff.afterAssistant}</span>
+                  </div>
+                  <div className="flex items-center justify-between bg-[#0b141a] border border-[#2f3b43] rounded-lg px-3 py-2">
+                    <span className="text-gray-300">After User Message</span>
+                    <span className="text-white font-semibold">{dropOff.afterUser}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Hot Leads */}
+            <div className="bg-[#1f2c34] border border-[#2f3b43] rounded-xl p-5 mb-6">
+              <h2 className="font-semibold mb-4 text-gray-300">Hot Leads (Call Now)</h2>
+              {hotLeads.length === 0 ? (
+                <p className="text-gray-500 text-sm">No hot leads yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {hotLeads.slice(0, 10).map(h => (
+                    <div key={h.session_id} className="flex items-center justify-between bg-[#0b141a] border border-[#2f3b43] rounded-lg px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="text-white text-sm font-medium">Session {h.session_id.slice(0, 8)}...</p>
+                        <p className="text-gray-500 text-xs truncate">{h.messages[h.messages.length-1]?.content?.slice(0, 60)}</p>
+                      </div>
+                      <button className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#25D366]/20 text-[#25D366] hover:bg-[#25D366]/30 transition border border-[#25D366]/30">
+                        <PhoneCall className="w-3 h-3" /> Call now
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Export Section */}
             <div className="bg-[#1f2c34] border border-[#2f3b43] rounded-xl p-5 mb-6">
               <div className="flex items-center justify-between mb-4">
@@ -469,6 +848,28 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
+
+            {/* Audit Log */}
+            <div className="bg-[#1f2c34] border border-[#2f3b43] rounded-xl p-5 mt-6">
+              <h2 className="font-semibold mb-4 text-gray-300">Audit Log</h2>
+              {auditLog.length === 0 ? (
+                <p className="text-gray-500 text-sm">No admin actions yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {auditLog.slice(0, 20).map(a => (
+                    <div key={a.id} className="flex items-center justify-between bg-[#0b141a] border border-[#2f3b43] rounded-lg px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="text-white text-xs font-medium">{a.action.replace(/_/g, ' ')}</p>
+                        <p className="text-gray-500 text-[11px] truncate">
+                          {a.detail || '—'} {a.session_id ? `· ${a.session_id.slice(0, 8)}...` : ''}
+                        </p>
+                      </div>
+                      <span className="text-gray-500 text-[11px]">{timeAgo(a.at)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -476,18 +877,50 @@ export default function AdminDashboard() {
         {tab === 'conversations' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4" style={{ height: 'calc(100vh - 200px)' }}>
             <div className="bg-[#1f2c34] border border-[#2f3b43] rounded-xl overflow-y-auto">
-              <div className="p-4 border-b border-[#2f3b43] sticky top-0 bg-[#1f2c34]">
-                <h2 className="font-semibold text-gray-300">All Conversations ({conversations.length})</h2>
+              <div className="p-4 border-b border-[#2f3b43] sticky top-0 bg-[#1f2c34] space-y-3">
+                <h2 className="font-semibold text-gray-300">All Conversations ({filteredConversations.length})</h2>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-[#111b21] border border-[#2f3b43] rounded-lg px-3 py-1.5 flex items-center gap-2">
+                    <Search className="w-3.5 h-3.5 text-[#8696a0]" />
+                    <input
+                      value={search}
+                      onChange={e => setSearch(e.target.value)}
+                      placeholder="Search"
+                      className="bg-transparent text-xs text-white outline-none w-full"
+                    />
+                  </div>
+                  <select value={leadFilter} onChange={e => setLeadFilter(e.target.value as any)} className="bg-[#111b21] border border-[#2f3b43] rounded-lg px-2 py-1.5 text-xs text-white">
+                    <option value="all">All</option>
+                    <option value="hot">Hot</option>
+                    <option value="warm">Warm</option>
+                    <option value="cold">Cold</option>
+                  </select>
+                </div>
               </div>
-              {conversations.length === 0 ? <p className="text-gray-500 text-sm p-4">No conversations yet.</p>
-                : conversations.map(convo => (
-                  <button key={convo.session_id} onClick={() => setSelectedConvo(convo)}
+              {filteredConversations.length === 0 ? <p className="text-gray-500 text-sm p-4">No conversations yet.</p>
+                : filteredConversations.map(convo => (
+                  <button key={convo.session_id} onClick={() => {
+                    setSelectedConvo(convo);
+                    setReadMap(prev => ({ ...prev, [convo.session_id]: new Date().toISOString() }));
+                  }}
                     className={`w-full text-left px-4 py-3 border-b border-[#2f3b43] hover:bg-[#2a3942] transition ${selectedConvo?.session_id === convo.session_id ? 'bg-[#2a3942]' : ''}`}>
                     <div className="flex justify-between items-start">
-                      <span className="text-sm font-medium text-white">Session {convo.session_id.slice(0, 8)}...</span>
+                      <span className="text-sm font-medium text-white flex items-center gap-2">
+                        Session {convo.session_id.slice(0, 8)}...
+                        {new Date(convo.last_message_at).getTime() > new Date(readMap[convo.session_id] || lastChecked).getTime() && (
+                          <span className="inline-block w-2 h-2 rounded-full bg-[#25D366]" />
+                        )}
+                      </span>
                       <span className="text-xs text-gray-500">{timeAgo(convo.last_message_at)}</span>
                     </div>
-                    <div className="text-xs text-gray-400 mt-1">{convo.message_count} messages</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-gray-400">{convo.message_count} messages</span>
+                      {leadTempForSession(convo.session_id) !== 'unknown' && (
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${TEMP_COLORS[leadTempForSession(convo.session_id)] || ''}`}>
+                          {leadTempForSession(convo.session_id)}
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs text-gray-500 mt-1 truncate">
                       {convo.messages[convo.messages.length - 1]?.content?.replace(/```[\s\S]*?```/g, '').trim().slice(0, 60)}...
                     </div>
@@ -502,6 +935,160 @@ export default function AdminDashboard() {
                   <div className="p-4 border-b border-[#2f3b43] sticky top-0 bg-[#1f2c34]">
                     <h2 className="font-semibold text-gray-300">Session: {selectedConvo.session_id}</h2>
                     <p className="text-xs text-gray-500">Started {new Date(selectedConvo.started_at).toLocaleString()}</p>
+                    <div className="mt-3 grid grid-cols-1 lg:grid-cols-3 gap-3">
+                      <div className="bg-[#111b21] border border-[#2f3b43] rounded-lg p-3 lg:col-span-2">
+                        <div className="text-[10px] text-gray-400 uppercase mb-2 flex items-center gap-1"><User className="w-3 h-3" /> Lead Profile</div>
+                        {(() => {
+                          const lead = buildLeadProfile(selectedConvo);
+                          return (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                              <div className="flex items-center justify-between bg-[#0b141a] border border-[#2f3b43] rounded-md px-2 py-1.5">
+                                <span className="text-gray-400">Name</span>
+                                <span className="text-white">{lead.name || 'Unknown'}</span>
+                              </div>
+                              <div className="flex items-center justify-between bg-[#0b141a] border border-[#2f3b43] rounded-md px-2 py-1.5">
+                                <span className="text-gray-400">Phone</span>
+                                <span className="text-white">{lead.phone || 'Unknown'}</span>
+                              </div>
+                              <div className="flex items-center justify-between bg-[#0b141a] border border-[#2f3b43] rounded-md px-2 py-1.5">
+                                <span className="text-gray-400">Budget</span>
+                                <span className="text-white">{lead.budget ? `GHS ${lead.budget.toLocaleString()}` : 'Unknown'}</span>
+                              </div>
+                              <div className="flex items-center justify-between bg-[#0b141a] border border-[#2f3b43] rounded-md px-2 py-1.5">
+                                <span className="text-gray-400">Type</span>
+                                <span className="text-white">{lead.type || 'Unknown'}</span>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                      <div className="bg-[#111b21] border border-[#2f3b43] rounded-lg p-3">
+                        <div className="text-[10px] text-gray-400 uppercase mb-2 flex items-center gap-1"><Bell className="w-3 h-3" /> Follow-up</div>
+                        <div className="space-y-2">
+                          <input
+                            type="datetime-local"
+                            value={reminderWhen}
+                            onChange={e => setReminderWhen(e.target.value)}
+                            className="w-full bg-[#0b141a] border border-[#2f3b43] rounded-md text-xs text-white px-2 py-1"
+                          />
+                          <input
+                            value={reminderNote}
+                            onChange={e => setReminderNote(e.target.value)}
+                            placeholder="Note (optional)"
+                            className="w-full bg-[#0b141a] border border-[#2f3b43] rounded-md text-xs text-white px-2 py-1"
+                          />
+                          <button
+                            onClick={scheduleReminder}
+                            className="w-full text-xs px-3 py-1.5 rounded-lg bg-[#25D366]/20 text-[#25D366] hover:bg-[#25D366]/30 transition border border-[#25D366]/30"
+                          >
+                            Schedule follow-up
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="bg-[#111b21] border border-[#2f3b43] rounded-lg p-3">
+                        <div className="text-[10px] text-gray-400 uppercase mb-1 flex items-center gap-1"><Tag className="w-3 h-3" /> Tags</div>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {['SUV', 'Low budget', 'Ready to buy'].map(t => (
+                            <button
+                              key={t}
+                              onClick={() => {
+                                setTags(prev => ({ ...prev, [selectedConvo.session_id]: [...(prev[selectedConvo.session_id] || []), t] }));
+                                addAudit('tag_added', t, selectedConvo.session_id);
+                              }}
+                              className="text-[10px] px-2 py-1 rounded-md bg-[#0b141a] border border-[#2f3b43] text-gray-300 hover:text-white"
+                            >
+                              {t}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {(tags[selectedConvo.session_id] || []).map((t, i) => (
+                            <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-[#2a3942] text-[#e9edef]">{t}</span>
+                          ))}
+                        </div>
+                        <input
+                          placeholder="Add tag and press Enter"
+                          className="w-full bg-[#0b141a] border border-[#2f3b43] rounded-md text-xs text-white px-2 py-1"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const v = (e.currentTarget.value || '').trim();
+                              if (!v) return;
+                              setTags(prev => ({ ...prev, [selectedConvo.session_id]: [...(prev[selectedConvo.session_id] || []), v] }));
+                              e.currentTarget.value = '';
+                              addAudit('tag_added', v, selectedConvo.session_id);
+                            }
+                          }}
+                        />
+                      </div>
+                      <div className="bg-[#111b21] border border-[#2f3b43] rounded-lg p-3">
+                        <div className="text-[10px] text-gray-400 uppercase mb-1">Notes</div>
+                        <textarea
+                          value={notes[selectedConvo.session_id] || ''}
+                          onChange={e => setNotes(prev => ({ ...prev, [selectedConvo.session_id]: e.target.value }))}
+                          onBlur={() => addAudit('note_updated', 'note edited', selectedConvo.session_id)}
+                          placeholder="Internal notes..."
+                          className="w-full min-h-[64px] bg-[#0b141a] border border-[#2f3b43] rounded-md text-xs text-white px-2 py-1"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="bg-[#111b21] border border-[#2f3b43] rounded-lg p-3">
+                        <div className="text-[10px] text-gray-400 uppercase mb-2 flex items-center gap-1"><FileText className="w-3 h-3" /> Export Conversation</div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => exportConversation(selectedConvo)}
+                            className="text-xs px-3 py-1.5 rounded-lg bg-[#2a3942] text-white hover:bg-[#3d4f5c] transition"
+                          >
+                            JSON
+                          </button>
+                          <button
+                            onClick={() => exportConversationText(selectedConvo)}
+                            className="text-xs px-3 py-1.5 rounded-lg bg-[#25D366]/20 text-[#25D366] hover:bg-[#25D366]/30 transition border border-[#25D366]/30"
+                          >
+                            Text
+                          </button>
+                        </div>
+                      </div>
+                      <div className="bg-[#111b21] border border-[#2f3b43] rounded-lg p-3">
+                        <div className="text-[10px] text-gray-400 uppercase mb-2 flex items-center gap-1"><Bell className="w-3 h-3" /> Reminders</div>
+                        {reminders.filter(r => r.session_id === selectedConvo.session_id && !r.done).length === 0 ? (
+                          <p className="text-xs text-gray-500">No reminders yet.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {reminders.filter(r => r.session_id === selectedConvo.session_id && !r.done).slice(0, 5).map(r => {
+                              const due = new Date(r.when).getTime() <= Date.now();
+                              return (
+                                <div key={r.id} className={`flex items-center justify-between text-xs px-2 py-1.5 rounded-md border ${due ? 'border-[#f59e0b] text-[#f59e0b]' : 'border-[#2f3b43] text-gray-300'} bg-[#0b141a]`}>
+                                  <span className="truncate">{r.note || 'Follow-up'}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] text-gray-500">{new Date(r.when).toLocaleString()}</span>
+                                    <button
+                                      onClick={() => setReminders(prev => prev.map(x => x.id === r.id ? { ...x, done: true } : x))}
+                                      className="text-[10px] px-2 py-0.5 rounded bg-[#2a3942] text-gray-200"
+                                    >
+                                      Done
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-3 bg-[#111b21] border border-[#2f3b43] rounded-lg p-3">
+                      <div className="text-[10px] text-gray-400 uppercase mb-2">Session Timeline</div>
+                      <div className="space-y-1">
+                        {events.filter(e => e.session_id === selectedConvo.session_id).sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime()).map((e, i) => (
+                          <div key={i} className="text-xs text-gray-300 flex items-center justify-between">
+                            <span className="capitalize">{e.event_type.replace(/_/g, ' ')}</span>
+                            <span className="text-gray-500">{timeAgo(e.created_at)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                   <div className="flex-1 p-4 space-y-3">
                     {selectedConvo.messages.map((msg, i) => (
@@ -518,6 +1105,57 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                  <div className="p-4 border-t border-[#2f3b43] bg-[#1f2c34]">
+                    <div className="mb-3">
+                      <div className="text-[10px] text-gray-400 uppercase mb-2">Response templates</div>
+                      <div className="flex flex-wrap gap-2">
+                        {templates.map(t => (
+                          <button
+                            key={t.id}
+                            onClick={() => setAdminMsg(t.text)}
+                            className="text-[11px] px-2 py-1 rounded-md bg-[#0b141a] border border-[#2f3b43] text-gray-300 hover:text-white"
+                          >
+                            {t.text.slice(0, 30)}{t.text.length > 30 ? '...' : ''}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="mt-2 flex items-center gap-2">
+                        <input
+                          placeholder="Add template"
+                          className="flex-1 bg-[#111b21] border border-[#2f3b43] rounded-lg px-3 py-2 text-xs text-white outline-none"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const v = e.currentTarget.value.trim();
+                              if (!v) return;
+                              setTemplates(prev => [{ id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, text: v }, ...prev].slice(0, 20));
+                              e.currentTarget.value = '';
+                              addAudit('template_added', v);
+                            }
+                          }}
+                        />
+                        <button
+                          className="px-2 py-2 rounded-md bg-[#2a3942] text-gray-200"
+                          title="Press Enter to add"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={adminMsg}
+                        onChange={e => setAdminMsg(e.target.value)}
+                        placeholder="Send a message to this chat..."
+                        className="flex-1 bg-[#111b21] border border-[#2f3b43] rounded-lg px-3 py-2 text-sm text-white outline-none"
+                      />
+                      <button
+                        onClick={sendAdminMessage}
+                        className="text-sm px-4 py-2 rounded-lg bg-[#25D366]/20 text-[#25D366] hover:bg-[#25D366]/30 transition border border-[#25D366]/30"
+                      >
+                        <span className="flex items-center gap-1.5"><Send className="w-4 h-4" /> Send</span>
+                      </button>
+                    </div>
                   </div>
                 </>
               )}
