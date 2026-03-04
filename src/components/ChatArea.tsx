@@ -1051,7 +1051,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
           if (car) bookingProposal = { carId: car.id, carName: `${car.brand} ${car.model}` };
         }
         if (data.provider_used || data.fallback_used) {
-          if (data.fallback_used) setUsingBackup(true);
+          // no-op: backup banner removed
           if (data.provider_used === 'local_demo' || data.fallback_used) usedLocalDemo = true;
           logService.addLog({
             intent: `provider:${data.provider_used || 'unknown'}`,

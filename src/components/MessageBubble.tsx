@@ -127,6 +127,16 @@ function CarCard({ url, onBook }: { url: string; onBook?: (id: string, name: str
                 📍 {(car as any).mileage}
               </span>
             )}
+            {(car as any).insured && (
+              <span className="text-[10px] bg-[#2a3942] text-[#aebac1] px-2 py-1 rounded-full border border-[#3d4f5c]/50">
+                Insurance
+              </span>
+            )}
+            {(car as any).registered && (
+              <span className="text-[10px] bg-[#2a3942] text-[#aebac1] px-2 py-1 rounded-full border border-[#3d4f5c]/50">
+                Registration
+              </span>
+            )}
           </div>
 
           {/* Action buttons */}
