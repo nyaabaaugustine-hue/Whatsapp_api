@@ -29,7 +29,6 @@ export function ChatArea({ onClose }: ChatAreaProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [netOnline, setNetOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
-  const [usingBackup, setUsingBackup] = useState<boolean>(false);
   const [isCalling, setIsCalling] = useState(false);
   const [autoRead, setAutoRead] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -1416,11 +1415,6 @@ export function ChatArea({ onClose }: ChatAreaProps) {
               {leadInfo?.name && (
                 <span className="inline-block align-middle text-[10px] font-black text-[#E8E6E1] bg-[#2a2a2a] px-2 py-0.5 rounded-full border border-[#3a3a3a] truncate">
                   {leadInfo.name}
-                </span>
-              )}
-              {usingBackup && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-black text-yellow-300 bg-yellow-900/30 border-yellow-700">
-                  Using backup
                 </span>
               )}
             </div>
