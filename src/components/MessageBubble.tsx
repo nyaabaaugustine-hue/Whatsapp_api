@@ -116,15 +116,10 @@ function CarCard({ car: passedCar, url, onBook, className }: { car?: any; url?: 
                   <span className="absolute top-2 left-2 bg-black/70 backdrop-blur-md text-[#EDEDED] text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10">
                     {car.year}
                   </span>
-                  {(car as any).color && (
-                    <span className="absolute top-2 right-2 bg-black/70 backdrop-blur-md text-white text-[10px] px-2 py-0.5 rounded-full border border-white/10">
-                      🎨 {(car as any).color}
-                    </span>
-                  )}
                   <div className="absolute bottom-0 left-0 right-0 px-3 py-2 flex items-end justify-between">
                     <div className="bg-black/70 backdrop-blur-[1px] px-2 py-1 rounded-md">
                       <p className="text-[#EDEDED] font-black text-[15px] leading-tight drop-shadow-lg">{car.brand} {car.model}</p>
-                      <p className="text-[#EDEDED]/90 text-[10px]">{car.year} · Available Now</p>
+                      <p className="text-[#EDEDED]/90 text-[10px]">Available Now</p>
                     </div>
                     <div className="text-right">
                       <p
@@ -133,7 +128,6 @@ function CarCard({ car: passedCar, url, onBook, className }: { car?: any; url?: 
                       >
                         GHS {formatPriceShort(car.price)}
                       </p>
-                      <p className="text-white/60 text-[9px]">or best offer</p>
                     </div>
                   </div>
                 </>
@@ -151,15 +145,10 @@ function CarCard({ car: passedCar, url, onBook, className }: { car?: any; url?: 
       {car && (
         <div className="px-3 pt-2.5 pb-3">
           {/* Specs pills */}
-          <div className="flex gap-1.5 mb-3 flex-wrap">
+          <div className="flex gap-1.5 mb-2 flex-wrap">
             {(car as any).transmission && (
               <span className="text-[10px] bg-[#2a3942] text-[#aebac1] px-2 py-1 rounded-full border border-[#3d4f5c]/50">
                 ⚙️ {(car as any).transmission}
-              </span>
-            )}
-            {(car as any).fuel && (
-              <span className="text-[10px] bg-[#2a3942] text-[#aebac1] px-2 py-1 rounded-full border border-[#3d4f5c]/50">
-                ⛽ {(car as any).fuel}
               </span>
             )}
             {(car as any).mileage && (
@@ -167,14 +156,9 @@ function CarCard({ car: passedCar, url, onBook, className }: { car?: any; url?: 
                 📍 {(car as any).mileage}
               </span>
             )}
-            {(car as any).insured && (
+            {(((car as any).insured || (car as any).registered)) && (
               <span className="text-[10px] bg-[#2a3942] text-[#aebac1] px-2 py-1 rounded-full border border-[#3d4f5c]/50">
-                Insurance
-              </span>
-            )}
-            {(car as any).registered && (
-              <span className="text-[10px] bg-[#2a3942] text-[#aebac1] px-2 py-1 rounded-full border border-[#3d4f5c]/50">
-                Registration
+                Verified docs
               </span>
             )}
           </div>
@@ -188,47 +172,12 @@ function CarCard({ car: passedCar, url, onBook, className }: { car?: any; url?: 
               <CalendarCheck className="w-3.5 h-3.5" />
               Book Viewing
             </button>
-            {ownershipCost !== null && (
-              <span className="px-2 py-1 text-[10px] rounded-[6%] bg-[#2a3942] text-[#aebac1] border border-[#3d4f5c]/50" title="Estimated monthly ownership cost">
-                ₵{Number(ownershipCost).toLocaleString()}/mo
-              </span>
-            )}
             <a
               href={shortlistLink}
               className="w-9 h-9 flex-shrink-0 rounded-[6%] flex items-center justify-center transition-all active:scale-95 border bg-[#2a3942] border-[#3d4f5c]/50 text-[#8696a0] hover:text-white hover:bg-[#3d4f5c]"
               title="Add to Shortlist"
             >
               <Heart className="w-4 h-4" />
-            </a>
-            <button
-              onClick={saveLater}
-              className="w-9 h-9 flex-shrink-0 rounded-[6%] flex items-center justify-center transition-all active:scale-95 border bg-[#2a3942] border-[#3d4f5c]/50 text-[#8696a0] hover:text-white hover:bg-[#3d4f5c]"
-              title="Save for later"
-            >
-              <Clock className="w-4 h-4" />
-            </button>
-            <button
-              onClick={requestPhotos}
-              className="w-9 h-9 flex-shrink-0 rounded-[6%] flex items-center justify-center transition-all active:scale-95 border bg-[#2a3942] border-[#3d4f5c]/50 text-[#8696a0] hover:text-white hover:bg-[#3d4f5c]"
-              title="Request more photos"
-            >
-              <ImageIcon className="w-4 h-4" />
-            </button>
-            <a
-              href={similarLink}
-              className="w-9 h-9 flex-shrink-0 rounded-[6%] flex items-center justify-center transition-all active:scale-95 border bg-[#2a3942] border-[#3d4f5c]/50 text-[#8696a0] hover:text-white hover:bg-[#3d4f5c]"
-              title="Show Similar"
-            >
-              <Search className="w-4 h-4" />
-            </a>
-            <a
-              href={contactLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-9 h-9 flex-shrink-0 rounded-[6%] flex items-center justify-center transition-all active:scale-95 border bg-[#0f3d2e] border-[#2f5b48] text-[#e6e9ee] hover:text-white hover:bg-[#186248]"
-              title="Contact on WhatsApp"
-            >
-              <Smartphone className="w-4 h-4" />
             </a>
             <button
               onClick={handleShare}
