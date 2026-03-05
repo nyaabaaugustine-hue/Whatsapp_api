@@ -9,9 +9,23 @@ interface LeadCaptureModalProps {
 export function LeadCaptureModal({ onSubmit, onSkip }: LeadCaptureModalProps) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [touched, setTouched] = useState(false);
 
   const handleSubmit = () => {
-    if (name.trim()) onSubmit(name.trim(), phone.trim());
+    const n = name.trim();
+    const p = phone.trim();
+    const d = p.replace(/[^\d]/g, '');
+    const valid =
+      (d.startsWith('0') && d.length === 10) ||
+      (d.startsWith('233') && d.length === 12);
+    if (!n || !p || !valid) {
+      setTouched(true);
+      setError('Enter a valid WhatsApp number (e.g., 054xxxxxxx or +23354xxxxxxx)');
+      return;
+    }
+    setError(null);
+    onSubmit(n, p);
   };
 
   return (
@@ -42,13 +56,14 @@ export function LeadCaptureModal({ onSubmit, onSkip }: LeadCaptureModalProps) {
             <Phone className="w-4 h-4 text-[#00a884] shrink-0" />
             <input
               type="tel"
-              placeholder="Phone number *"
+              placeholder="WhatsApp number *"
               value={phone}
-              onChange={e => setPhone(e.target.value)}
+              onChange={e => { setPhone(e.target.value); if (touched) setError(null); }}
               className="bg-transparent text-[#e9edef] placeholder-[#8696a0] text-sm outline-none flex-1 min-w-0"
               onKeyDown={e => e.key === 'Enter' && handleSubmit()}
             />
           </div>
+          <p className="text-[#8696a0] text-[11px] px-1">Use the WhatsApp number we can reach you on (e.g., 054xxxxxxx or +23354xxxxxxx)</p>
         </div>
 
         <button
@@ -58,8 +73,11 @@ export function LeadCaptureModal({ onSubmit, onSkip }: LeadCaptureModalProps) {
         >
           Start Chatting →
         </button>
-        {(!name.trim() || !phone.trim()) && (
+        {((!name.trim() || !phone.trim()) && !error) && (
           <p className="text-center text-[#8696a0] text-xs mt-2">Both name and phone are required</p>
+        )}
+        {error && (
+          <p className="text-center text-red-400 text-xs mt-2">{error}</p>
         )}
         {onSkip && (
           <button

@@ -1566,15 +1566,6 @@ export function ChatArea({ onClose }: ChatAreaProps) {
         </div>
 
         <div className="flex items-center gap-0.5 text-[#aebac1] flex-shrink-0">
-          {serviceDue && (
-            <div className="mr-2 inline-flex items-center gap-2 bg-[#003d32] text-[#25D366] border border-[#05846e] px-2 py-1 rounded-full text-[10px] font-bold">
-              <span className="w-2 h-2 rounded-full bg-[#25D366]" />
-              Service due
-              <button onClick={triggerServiceBooking} className="ml-1 bg-[#25D366] text-[#0b141a] px-2 py-0.5 rounded-full border border-[#25D366]/50 hover:opacity-90">
-                Book
-              </button>
-            </div>
-          )}
 
 
           {/* Auto Read */}
