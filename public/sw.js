@@ -38,15 +38,27 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
 
-  // Network-first for API
   if (req.url.includes('/api/')) {
     e.respondWith(
-      fetch(req).catch(() => caches.match(req)).then(res => res || new Response('', { status: 503 }))
+      fetch(req)
+        .then(res => {
+          const copy = res.clone();
+          caches.open(CACHE).then(cache => cache.put(req, copy)).catch(() => {});
+          return res;
+        })
+        .catch(async () => {
+          const cached = await caches.match(req);
+          if (cached) return cached;
+          if (req.url.includes('/api/cars')) {
+            const body = JSON.stringify({ cars: [] });
+            return new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } });
+          }
+          return new Response('', { status: 503 });
+        })
     );
     return;
   }
 
-  // Navigation fallback to offline.html
   if (isNavigation(req)) {
     e.respondWith(
       fetch(req)
@@ -60,7 +72,6 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Images: stale-while-revalidate
   if (req.destination === 'image') {
     e.respondWith(
       caches.match(req).then(cached => {

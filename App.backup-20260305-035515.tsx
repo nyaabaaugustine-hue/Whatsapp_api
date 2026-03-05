@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { ChatArea } from './components/ChatArea';
 import AdminDashboard from './pages/AdminDashboard';
 import InventoryPage from './pages/InventoryPage';
@@ -61,37 +61,12 @@ export default function App() {
     let active = true;
     (async () => {
       try {
-        const req = new Request('/api/cars');
-        const res = await fetch(req);
+        const res = await fetch('/api/cars');
         if (!res.ok) return;
         const data = await res.json();
         const list = Array.isArray(data?.cars) ? data.cars : [];
-        if (active && list.length > 0) {
-          setCars(list);
-          try {
-            const copy = new Response(JSON.stringify({ cars: list }), { headers: { 'Content-Type': 'application/json' } });
-            const cache = await caches.open('drv-cache-v2');
-            await cache.put(req, copy);
-            const imgs = list.map((c: any) => c.real_image || c.image_url).filter(Boolean);
-            await Promise.all(imgs.slice(0, 20).map(async (url: string) => {
-              try {
-                const r = await fetch(url, { mode: 'no-cors' });
-                await cache.put(url, r);
-              } catch {}
-            }));
-          } catch {}
-        }
+        if (active && list.length > 0) setCars(list);
       } catch {}
-      if (active) {
-        try {
-          const cached = await caches.match('/api/cars');
-          if (cached) {
-            const data = await cached.json();
-            const list = Array.isArray(data?.cars) ? data.cars : [];
-            if (list.length > 0) setCars(list);
-          }
-        } catch {}
-      }
     })();
     return () => { active = false; };
   }, []);

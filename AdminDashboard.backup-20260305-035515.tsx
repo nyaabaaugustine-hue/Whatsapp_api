@@ -1,10 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { useRef } from 'react';
-import { X, Download, Calendar, Thermometer, Target, Clock, Hash, Database, LogOut, Search, PhoneCall, Tag, Bell, FileText, Send, Plus, User, Menu } from 'lucide-react';
+import { X, Download, Calendar, Thermometer, Target, Clock, Hash, Database, LogOut, Search, PhoneCall, Tag, Bell, FileText, Send, Plus, User } from 'lucide-react';
 import { AdminLogin } from '../components/AdminLogin';
-import AppointmentScheduler from '../components/AppointmentScheduler';
-import { listAppointments } from '../services/appointmentService';
-import type { Appointment } from '../types';
 import { CAR_DATABASE } from '../data/cars';
 
 const ADMIN_KEY = import.meta.env.VITE_ADMIN_SECRET || 'drivemond2026';
@@ -328,10 +325,6 @@ export default function AdminDashboard() {
     { id: 't2', text: 'Do you prefer SUV, sedan, or pickup?' },
     { id: 't3', text: 'We are on Spintex Road, Accra. Would you like a map pin?' },
   ]);
-  const [showScheduler, setShowScheduler] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(false);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [apptLoading, setApptLoading] = useState(false);
   const [reminderNote, setReminderNote] = useState('');
   const [reminderWhen, setReminderWhen] = useState('');
   const [cars, setCars] = useState<CarItem[]>([]);
@@ -376,36 +369,12 @@ export default function AdminDashboard() {
   const fetchCars = useCallback(async () => {
     if (!authed) return;
     try {
-      const req = new Request('/api/cars');
-      const res = await fetch(req);
+      const res = await fetch('/api/cars');
       if (!res.ok) return;
       const data = await res.json();
       const list = Array.isArray(data?.cars) ? data.cars : [];
       setCars(list.length ? list : CAR_DATABASE);
-      try {
-        const copy = new Response(JSON.stringify({ cars: list }), { headers: { 'Content-Type': 'application/json' } });
-        const cache = await caches.open('drv-cache-v2');
-        await cache.put(req, copy);
-        const imgs = list.map((c: any) => c.real_image || c.image_url).filter(Boolean);
-        await Promise.all(imgs.slice(0, 50).map(async (url: string) => {
-          try {
-            const r = await fetch(url, { mode: 'no-cors' });
-            await cache.put(url, r);
-          } catch {}
-        }));
-      } catch {}
     } catch {
-      try {
-        const cached = await caches.match('/api/cars');
-        if (cached) {
-          const data = await cached.json();
-          const list = Array.isArray(data?.cars) ? data.cars : [];
-          if (list.length > 0) {
-            setCars(list);
-            return;
-          }
-        }
-      } catch {}
       setCars(CAR_DATABASE);
     }
   }, [authed]);
@@ -599,20 +568,6 @@ export default function AdminDashboard() {
       return () => clearInterval(i);
     }
   }, [authed, fetchData, fetchCars]);
-
-  const fetchAppointments = useCallback(async () => {
-    if (!authed) return;
-    setApptLoading(true);
-    try {
-      const data = await listAppointments();
-      setAppointments(data.appointments || []);
-    } catch {}
-    setApptLoading(false);
-  }, [authed]);
-
-  useEffect(() => {
-    fetchAppointments();
-  }, [fetchAppointments]);
 
   useEffect(() => {
     const i = setInterval(() => setNowTick(Date.now()), 60000);
@@ -1834,35 +1789,12 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-[#0b141a] text-white">
-      {/* Left Sidebar */}
-      <div className={`fixed top-0 left-0 z-[1000] h-full w-[240px] bg-[#111b21] border-r border-[#2f3b43] transform transition-transform ${showSidebar ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="px-4 py-3 border-b border-[#2f3b43] flex items-center justify-between">
-          <span className="font-bold">Menu</span>
-          <button onClick={() => setShowSidebar(false)} className="text-[#8696a0] hover:text-white">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="p-3 space-y-1">
-          {(['overview', 'conversations', 'events', 'inventory'] as const).map(t => (
-            <button key={t} onClick={() => { setTab(t); setShowSidebar(false); }}
-              className={`w-full text-left px-3 py-2 rounded-lg ${tab === t ? 'bg-[#2a3942] text-white' : 'text-[#aebac1] hover:bg-[#1d2a33]'}`}>
-              {t === 'overview' ? 'Overview' : t === 'conversations' ? 'Conversations' : t === 'events' ? 'Events' : 'Inventory'}
-            </button>
-          ))}
-        </div>
-      </div>
       {/* Event Detail Popup */}
       {selectedEvent && (
         <EventModal
           event={selectedEvent}
           onClose={() => setSelectedEvent(null)}
           onOpenConversation={openConversationFromEvent}
-        />
-      )}
-      {showScheduler && (
-        <AppointmentScheduler
-          onClose={() => setShowScheduler(false)}
-          onCreated={() => { setShowScheduler(false); fetchAppointments(); }}
         />
       )}
 
@@ -1873,14 +1805,8 @@ export default function AdminDashboard() {
           <p className="text-gray-400 text-xs">Last refresh: {lastRefresh.toLocaleTimeString()}</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setShowSidebar(true)} className="text-xs px-3 py-1.5 rounded-lg bg-[#2a3942] hover:bg-[#3d4f5c] transition">
-            <Menu className="w-3.5 h-3.5 inline-block mr-1" /> Menu
-          </button>
           <button onClick={fetchData} className={`text-xs px-3 py-1.5 rounded-lg bg-[#2a3942] hover:bg-[#3d4f5c] transition ${loading ? 'opacity-50' : ''}`}>
             {loading ? '⟳ Refreshing...' : '⟳ Refresh'}
-          </button>
-          <button onClick={() => setShowScheduler(true)} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#00a884]/20 text-[#00a884] hover:bg-[#00a884]/30 transition">
-            <Calendar className="w-3.5 h-3.5" /> Schedule
           </button>
           <button onClick={() => { sessionStorage.removeItem('__drv_adm__'); setAuthed(false); }}
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition">
@@ -1978,33 +1904,6 @@ export default function AdminDashboard() {
                 </div>
               ))}
             </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <div className="bg-[#1f2c34] border border-[#2f3b43] rounded-xl p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-gray-300">Upcoming Appointments</h3>
-                    <div className="text-[11px] text-gray-500">{appointments.length} scheduled</div>
-                  </div>
-                  <div className="space-y-2">
-                    {(apptLoading ? [] : appointments.slice(0, 5)).map(a => (
-                      <div key={a.id} className="flex items-center justify-between bg-[#0b141a] rounded-lg px-3 py-2">
-                        <div className="text-xs text-gray-300">
-                          <div className="font-semibold">{a.customerName}</div>
-                          <div className="text-[10px] text-gray-500">{new Date(a.startsAtIso).toLocaleString()} · {a.location || 'Showroom'}</div>
-                        </div>
-                        <div className="text-[10px] text-[#00a884]">{a.carName || 'Appointment'}</div>
-                      </div>
-                    ))}
-                    {!apptLoading && appointments.length === 0 && (
-                      <div className="text-xs text-gray-500">No upcoming appointments</div>
-                    )}
-                  </div>
-                  <div className="mt-3">
-                    <button onClick={fetchAppointments} className="text-[11px] px-2 py-1 rounded-lg bg-[#2a3942] text-white hover:bg-[#3d4f5c] transition">
-                      Refresh
-                    </button>
-                  </div>
-                </div>
-              </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
               <div className="lg:col-span-6 bg-[#1f2c34] border border-[#2f3b43] rounded-xl p-5">
@@ -2170,9 +2069,8 @@ export default function AdminDashboard() {
                 </div>
                 <div className="space-y-3">
                   {(() => {
-                    const totalLeads = leadBuckets.hot + leadBuckets.warm + leadBuckets.cold;
                     const stages = [
-                      { label: 'Tracked Leads', value: totalLeads, color: 'bg-[#00a884]' },
+                      { label: 'Total Leads', value: periodEvents.length, color: 'bg-[#00a884]' },
                       { label: 'Hot Leads', value: leadBuckets.hot, color: 'bg-red-500' },
                       { label: 'Booked', value: periodBookings.length, color: 'bg-purple-500' },
                     ];
@@ -2186,7 +2084,7 @@ export default function AdminDashboard() {
                             <span>{s.value}</span>
                           </div>
                           <div className="h-2 bg-[#111b21] rounded-full overflow-hidden">
-                            <div className={`h-2 ${s.color} rounded-full`} style={{ width: `${totalLeads>0? Math.max((s.value/totalLeads)*100, s.value>0?5:0):0}%` }} />
+                            <div className={`h-2 ${s.color} rounded-full`} style={{ width: `${periodEvents.length>0? Math.max((s.value/periodEvents.length)*100, s.value>0?5:0):0}%` }} />
                           </div>
                           {idx > 0 && (
                             <div className="text-[10px] text-gray-500 mt-1">Drop‑off: {drop}</div>

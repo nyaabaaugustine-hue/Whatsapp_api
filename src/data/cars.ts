@@ -13,6 +13,12 @@ export const CAR_DATABASE = [
     registered: true,
     image_url: 'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/9_iqcvig.jpg',
     real_image: 'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/9_iqcvig.jpg',
+    image_urls: [
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/9_iqcvig.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/9_iqcvig.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/9_iqcvig.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/9_iqcvig.jpg',
+    ],
   },
   {
     id: '2',
@@ -28,6 +34,12 @@ export const CAR_DATABASE = [
     registered: true,
     image_url: 'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/6y_mpmdoj.jpg',
     real_image: 'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/6y_mpmdoj.jpg',
+    image_urls: [
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/6y_mpmdoj.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/6y_mpmdoj.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/6y_mpmdoj.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/6y_mpmdoj.jpg',
+    ],
   },
   {
     id: '3',
@@ -43,6 +55,12 @@ export const CAR_DATABASE = [
     registered: true,
     image_url: 'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/8_tanvlv.jpg',
     real_image: 'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/8_tanvlv.jpg',
+    image_urls: [
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/8_tanvlv.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/8_tanvlv.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/8_tanvlv.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/8_tanvlv.jpg',
+    ],
   },
   {
     id: '4',
@@ -58,6 +76,12 @@ export const CAR_DATABASE = [
     registered: true,
     image_url: 'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/14_bg9vik.jpg',
     real_image: 'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/14_bg9vik.jpg',
+    image_urls: [
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/14_bg9vik.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/14_bg9vik.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/14_bg9vik.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/14_bg9vik.jpg',
+    ],
   },
   {
     id: '5',
@@ -73,6 +97,12 @@ export const CAR_DATABASE = [
     registered: true,
     image_url: 'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/7_fat7ab.jpg',
     real_image: 'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/7_fat7ab.jpg',
+    image_urls: [
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/7_fat7ab.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/7_fat7ab.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/7_fat7ab.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/7_fat7ab.jpg',
+    ],
   },
   {
     id: '6',
@@ -88,6 +118,12 @@ export const CAR_DATABASE = [
     registered: true,
     image_url: 'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/2_vwcbpa.jpg',
     real_image: 'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/2_vwcbpa.jpg',
+    image_urls: [
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/2_vwcbpa.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/2_vwcbpa.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/2_vwcbpa.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/2_vwcbpa.jpg',
+    ],
   },
   {
     id: '7',
@@ -103,6 +139,12 @@ export const CAR_DATABASE = [
     registered: true,
     image_url: 'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/download_p5z3as.jpg',
     real_image: 'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/download_p5z3as.jpg',
+    image_urls: [
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/download_p5z3as.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/download_p5z3as.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/download_p5z3as.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190502/download_p5z3as.jpg',
+    ],
   },
   {
     id: '8',
@@ -118,5 +160,11 @@ export const CAR_DATABASE = [
     registered: true,
     image_url: 'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190503/1_tvkb2m.jpg',
     real_image: 'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190503/1_tvkb2m.jpg',
+    image_urls: [
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190503/1_tvkb2m.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190503/1_tvkb2m.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190503/1_tvkb2m.jpg',
+      'https://res.cloudinary.com/dwsl2ktt2/image/upload/v1772190503/1_tvkb2m.jpg',
+    ],
   },
 ];

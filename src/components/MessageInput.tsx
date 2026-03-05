@@ -12,7 +12,9 @@ interface MessageInputProps {
 }
 
 export function MessageInput({ onSendMessage, isLoading, replyingTo, onClearReply, presetText }: MessageInputProps) {
-  const [text, setText] = useState('');
+  const [text, setText] = useState(() => {
+    try { return localStorage.getItem('__chat_draft__') || ''; } catch { return ''; }
+  });
   const [showEmoji, setShowEmoji] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -41,6 +43,10 @@ export function MessageInput({ onSendMessage, isLoading, replyingTo, onClearRepl
     if (presetText !== undefined) setText(presetText || '');
   }, [presetText]);
 
+  useEffect(() => {
+    try { localStorage.setItem('__chat_draft__', text); } catch {}
+  }, [text]);
+
   // Removed voice-to-text toggle to avoid duplicate recording controls
 
   const handleSend = async () => {
@@ -68,6 +74,7 @@ export function MessageInput({ onSendMessage, isLoading, replyingTo, onClearRepl
 
     onSendMessage(text.trim(), attachmentData);
     setText('');
+    try { localStorage.removeItem('__chat_draft__'); } catch {}
     setAttachmentPreview(null);
     setShowEmoji(false);
   };

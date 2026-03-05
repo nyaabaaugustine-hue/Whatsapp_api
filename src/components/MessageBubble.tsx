@@ -1,7 +1,7 @@
 ﻿import { format } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
-import { Volume2, VolumeX, CalendarCheck, Share2, TrendingUp, Copy, Check, Smartphone, Zap, Smile, Reply, Edit, Trash2 } from 'lucide-react';
+import { Volume2, VolumeX, CalendarCheck, Check, Smartphone, Zap, Smile, Reply, Edit, Trash2, Clock } from 'lucide-react';
 import { LocationCard } from './LocationCard';
 import { CarComparison } from './CarComparison';
 import { DepositCard } from './DepositCard';
@@ -14,6 +14,7 @@ import { QuickReplies } from './QuickReplies';
 interface MessageBubbleProps {
   message: Message;
   onConfirmBooking?: (carId: string, carName: string) => void;
+  onScheduleBooking?: (carId: string, carName: string, date: string, time: string) => void;
   onReact?: (id: string, emoji: string) => void;
   onReply?: (id: string) => void;
   onEdit?: (id: string) => void;
@@ -49,10 +50,26 @@ const WA_ICON = (
 );
 
 // â”€â”€ Beautiful Car Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function CarCard({ url, onBook }: { url: string; onBook?: (id: string, name: string) => void }) {
-  const car = CAR_DATABASE.find(c => (c as any).real_image === url || c.image_url === url);
+function CarCard({ car: passedCar, url, onBook, className }: { car?: any; url?: string; onBook?: (id: string, name: string) => void; className?: string }) {
+  const car = passedCar || (url ? CAR_DATABASE.find(c => {
+    const imgs = [(c as any).image_url, (c as any).real_image, ...(((c as any).image_urls) || [])].filter(Boolean);
+    return imgs.includes(url);
+  }) : undefined);
   const [shared, setShared] = useState(false);
-  const [imgErr, setImgErr] = useState(false);
+  const [imgErrs, setImgErrs] = useState<Record<string, boolean>>({});
+
+  const images = (() => {
+    if (car) {
+      const list = Array.isArray((car as any).image_urls) ? (car as any).image_urls.filter(Boolean) : [];
+      const feature = (car as any).image_url || list[0] || (car as any).real_image;
+      const gallery = (car as any).real_image || list[1];
+      const merged = [feature, gallery, ...list].filter(Boolean);
+      const deduped: string[] = [];
+      merged.forEach(u => { if (u && !deduped.includes(u)) deduped.push(u); });
+      return deduped.length > 0 ? deduped : (url ? [url] : []);
+    }
+    return url ? [url] : [];
+  })();
 
   const handleShare = () => {
     if (!car) return;
@@ -60,50 +77,60 @@ function CarCard({ url, onBook }: { url: string; onBook?: (id: string, name: str
     setShared(true);
     setTimeout(() => setShared(false), 2000);
   };
+  const contactLink = car
+    ? `https://wa.me/233504512884?text=${encodeURIComponent(
+      `Hi, I’m interested in the ${car.year} ${car.brand} ${car.model}. Can we chat?`
+    )}`
+    : 'https://wa.me/233504512884';
 
   return (
-    <div className="rounded-2xl overflow-hidden mb-2.5 border border-[#2f3b43]/80 bg-[#111b21] shadow-lg">
-      {/* Image */}
-      <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
-        <img
-          src={imgErr ? `https://placehold.co/400x225/1f2c34/8696a0?text=${encodeURIComponent(car ? `${car.brand} ${car.model}` : 'Car')}` : ((car as any)?.real_image || url)}
-          alt={car ? `${car.brand} ${car.model}` : 'Car'}
-          className="w-full h-full object-cover"
-          onError={() => setImgErr(true)}
-        />
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+    <div className={cn("rounded-2xl overflow-hidden mb-2.5 border border-[#2f3b43]/80 bg-[#111b21] shadow-lg", className)}>
+      {/* Image Carousel */}
+      <div className="relative w-full">
+        <div className="flex overflow-x-auto snap-x snap-mandatory gap-2 scroll-smooth no-scrollbar">
+          {images.map((img, i) => (
+            <div key={`${img}-${i}`} className="snap-center flex-shrink-0 w-full relative" style={{ aspectRatio: '16/9' }}>
+              <img
+                src={imgErrs[img] ? `https://placehold.co/400x225/1f2c34/8696a0?text=${encodeURIComponent(car ? `${car.brand} ${car.model}` : 'Car')}` : img}
+                alt={car ? `${car.brand} ${car.model}` : 'Car'}
+                className="w-full h-full object-cover"
+                onError={() => setImgErrs(prev => ({ ...prev, [img]: true }))}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
-        {/* Top badges */}
-        {car && (
-          <>
-            <span className="absolute top-2 left-2 bg-black/70 backdrop-blur-md text-[#EDEDED] text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10">
-              {car.year}
-            </span>
-            {(car as any).color && (
-              <span className="absolute top-2 right-2 bg-black/70 backdrop-blur-md text-white text-[10px] px-2 py-0.5 rounded-full border border-white/10">
-                🎨 {(car as any).color}
-              </span>
-            )}
-          </>
-        )}
-
-        {/* Bottom price overlay */}
-        {car && (
-          <div className="absolute bottom-0 left-0 right-0 px-3 py-2 flex items-end justify-between">
-            <div className="bg-black/70 backdrop-blur-[1px] px-2 py-1 rounded-md">
-              <p className="text-[#EDEDED] font-black text-[15px] leading-tight drop-shadow-lg">{car.brand} {car.model}</p>
-              <p className="text-[#EDEDED]/90 text-[10px]">{car.year} · Available Now</p>
+              {car && (
+                <>
+                  <span className="absolute top-2 left-2 bg-black/70 backdrop-blur-md text-[#EDEDED] text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/10">
+                    {car.year}
+                  </span>
+                  {(car as any).color && (
+                    <span className="absolute top-2 right-2 bg-black/70 backdrop-blur-md text-white text-[10px] px-2 py-0.5 rounded-full border border-white/10">
+                      🎨 {(car as any).color}
+                    </span>
+                  )}
+                  <div className="absolute bottom-0 left-0 right-0 px-3 py-2 flex items-end justify-between">
+                    <div className="bg-black/70 backdrop-blur-[1px] px-2 py-1 rounded-md">
+                      <p className="text-[#EDEDED] font-black text-[15px] leading-tight drop-shadow-lg">{car.brand} {car.model}</p>
+                      <p className="text-[#EDEDED]/90 text-[10px]">{car.year} · Available Now</p>
+                    </div>
+                    <div className="text-right">
+                      <p
+                        title={`GHS ${car.price.toLocaleString()}`}
+                        className="bg-black/70 text-[#EDEDED] font-black text-[16px] leading-tight drop-shadow-lg px-2 py-1 rounded-md"
+                      >
+                        GHS {formatPriceShort(car.price)}
+                      </p>
+                      <p className="text-white/60 text-[9px]">or best offer</p>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
-            <div className="text-right">
-              <p
-                title={`GHS ${car.price.toLocaleString()}`}
-                className="bg-black/70 text-[#EDEDED] font-black text-[16px] leading-tight drop-shadow-lg px-2 py-1 rounded-md"
-              >
-                GHS {formatPriceShort(car.price)}
-              </p>
-              <p className="text-white/60 text-[9px]">or best offer</p>
-            </div>
+          ))}
+        </div>
+        {images.length > 1 && (
+          <div className="absolute bottom-2 right-3 text-[10px] text-white/70 bg-black/50 px-2 py-0.5 rounded-full border border-white/10">
+            Swipe →
           </div>
         )}
       </div>
@@ -148,6 +175,15 @@ function CarCard({ url, onBook }: { url: string; onBook?: (id: string, name: str
               <CalendarCheck className="w-3.5 h-3.5" />
               Book Viewing
             </button>
+            <a
+              href={contactLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-9 h-9 flex-shrink-0 rounded-[6%] flex items-center justify-center transition-all active:scale-95 border bg-[#0f3d2e] border-[#2f5b48] text-[#e6e9ee] hover:text-white hover:bg-[#186248]"
+              title="Contact on WhatsApp"
+            >
+              <Smartphone className="w-4 h-4" />
+            </a>
             <button
               onClick={handleShare}
               className={cn(
@@ -167,6 +203,94 @@ function CarCard({ url, onBook }: { url: string; onBook?: (id: string, name: str
   );
 }
 
+function BudgetSliderCard({ config, onSubmit }: { config: Message['budgetSlider']; onSubmit?: (value: number) => void }) {
+  const min = config?.min ?? 60000;
+  const max = config?.max ?? 500000;
+  const step = config?.step ?? 5000;
+  const unit = config?.unit ?? 'GHS';
+  const [value, setValue] = useState<number>(Math.round((min + max) / 2));
+
+  return (
+    <div className="bg-[#0b141a] border border-[#2f3b43] rounded-xl p-3 mb-2">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[11px] text-[#8696a0] uppercase tracking-wide">Budget Range</div>
+        <div className="text-[12px] font-bold text-[#e9edef]">{unit} {value.toLocaleString()}</div>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => setValue(Number(e.target.value))}
+        className="w-full accent-[#00a884]"
+      />
+      <div className="flex items-center justify-between mt-1 text-[10px] text-[#8696a0]">
+        <span>{unit} {min.toLocaleString()}</span>
+        <span>{unit} {max.toLocaleString()}</span>
+      </div>
+      <button
+        onClick={() => onSubmit?.(value)}
+        className="mt-3 w-full bg-[#00a884] hover:bg-[#008f72] text-white text-[11px] font-bold py-2 rounded-lg transition"
+      >
+        Use This Budget
+      </button>
+    </div>
+  );
+}
+
+function TestDriveWidget({ carId, carName, onConfirm }: { carId: string; carName: string; onConfirm?: (carId: string, carName: string, date: string, time: string) => void }) {
+  const today = new Date();
+  const [date, setDate] = useState<string>('');
+  const [time, setTime] = useState<string>('');
+  const timeSlots = ['9:00 AM','10:00 AM','11:00 AM','12:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM'];
+  const minDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+  return (
+    <div className="bg-[#0b141a] border border-[#2f3b43] rounded-xl p-3 mb-2">
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <div className="text-[11px] text-[#00a884] font-bold uppercase tracking-wide">Schedule Test Drive</div>
+          <div className="text-[10px] text-[#8696a0] truncate">{carName}</div>
+        </div>
+        <Clock className="w-4 h-4 text-[#8696a0]" />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[10px] text-[#8696a0]">Date</label>
+          <input
+            type="date"
+            min={minDate}
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="mt-1 w-full bg-[#111b21] border border-[#2f3b43] rounded-md text-[11px] text-white px-2 py-1.5"
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-[#8696a0]">Time</label>
+          <select
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+            className="mt-1 w-full bg-[#111b21] border border-[#2f3b43] rounded-md text-[11px] text-white px-2 py-1.5"
+          >
+            <option value="">Select</option>
+            {timeSlots.map(t => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <button
+        onClick={() => { if (date && time) onConfirm?.(carId, carName, date, time); }}
+        disabled={!date || !time}
+        className="mt-3 w-full bg-[#00a884] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#008f72] text-white text-[11px] font-bold py-2 rounded-lg transition"
+      >
+        Confirm Test Drive
+      </button>
+    </div>
+  );
+}
+
 // â”€â”€ Audio message player â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function AudioMessage({ url }: { url: string }) {
   return (
@@ -182,11 +306,27 @@ function AudioMessage({ url }: { url: string }) {
 }
 
 // â”€â”€ Main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-export function MessageBubble({ message, onConfirmBooking, onReact, onReply, onEdit, onDelete, onQuickReplySelect }: MessageBubbleProps) {
+export function MessageBubble({ message, onConfirmBooking, onScheduleBooking, onReact, onReply, onEdit, onDelete, onQuickReplySelect }: MessageBubbleProps) {
   const isUser = message.sender === 'user';
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [showReactions, setShowReactions] = useState(false);
+  const aiImageUrls = message.aiImages || [];
+  const aiCars = (() => {
+    const map = new Map<string, any>();
+    const other: string[] = [];
+    aiImageUrls.forEach(url => {
+      const car = CAR_DATABASE.find(c => {
+        const imgs = [(c as any).image_url, (c as any).real_image, ...(((c as any).image_urls) || [])].filter(Boolean);
+        return imgs.includes(url);
+      });
+      if (car) map.set(String(car.id), car);
+      else other.push(url);
+    });
+    return { cars: Array.from(map.values()), other };
+  })();
+  const totalCarCards = aiCars.cars.length + aiCars.other.length;
+  const showCarCarousel = totalCarCards > 1;
 
   const speak = () => {
     if (!('speechSynthesis' in window)) return;
@@ -236,9 +376,55 @@ export function MessageBubble({ message, onConfirmBooking, onReact, onReply, onE
           )}
 
           {/* Car image cards */}
-          {message.aiImages?.map((url, idx) => (
-            <CarCard key={idx} url={url} onBook={onConfirmBooking} />
-          ))}
+          {showCarCarousel ? (
+            <div className="mb-2">
+              <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-2 pr-2">
+                {aiCars.cars.map((car: any) => (
+                  <CarCard
+                    key={car.id}
+                    car={car}
+                    onBook={onConfirmBooking}
+                    className="mb-0 w-[280px] sm:w-[320px] flex-shrink-0 snap-center"
+                  />
+                ))}
+                {aiCars.other.map((url, idx) => (
+                  <CarCard
+                    key={`img-${idx}`}
+                    url={url}
+                    onBook={onConfirmBooking}
+                    className="mb-0 w-[280px] sm:w-[320px] flex-shrink-0 snap-center"
+                  />
+                ))}
+              </div>
+              <div className="text-[10px] text-white/60 bg-black/40 px-2 py-0.5 rounded-full w-fit border border-white/10">
+                Slide → to view more cars
+              </div>
+            </div>
+          ) : (
+            <>
+              {aiCars.cars.map((car: any) => (
+                <CarCard key={car.id} car={car} onBook={onConfirmBooking} />
+              ))}
+              {aiCars.other.map((url, idx) => (
+                <CarCard key={`img-${idx}`} url={url} onBook={onConfirmBooking} />
+              ))}
+            </>
+          )}
+
+          {message.budgetSlider && (
+            <BudgetSliderCard
+              config={message.budgetSlider}
+              onSubmit={(val) => onQuickReplySelect?.(String(val), String(val))}
+            />
+          )}
+
+          {message.scheduleWidget && (
+            <TestDriveWidget
+              carId={message.scheduleWidget.carId}
+              carName={message.scheduleWidget.carName}
+              onConfirm={(carId, carName, date, time) => onScheduleBooking?.(carId, carName, date, time)}
+            />
+          )}
 
           {/* Car comparison card */}
           {message.compareCard && (

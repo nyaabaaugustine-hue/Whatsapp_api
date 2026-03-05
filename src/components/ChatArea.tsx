@@ -1,5 +1,5 @@
-﻿import { useState, useRef, useEffect } from 'react';
-import { MoreVertical, Phone, Video, X, Share2, Volume2, VolumeX, Download } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { MoreVertical, Phone, X, Share2, Volume2, VolumeX, Download, FileText } from 'lucide-react';
 import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
 import { LeadCaptureModal } from './LeadCaptureModal';
@@ -9,6 +9,7 @@ import { sendChatMessage } from '../services/chatService';
 import { CAR_DATABASE } from '../data/cars';
 import { cn } from '../lib/utils';
 import { logService } from '../services/logService';
+import { track } from '../services/analytics';
 
 interface ChatAreaProps {
   onClose?: () => void;
@@ -36,6 +37,8 @@ export function ChatArea({ onClose }: ChatAreaProps) {
   const [nameGreeted, setNameGreeted] = useState(false);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [errorToast, setErrorToast] = useState<string | null>(null);
+  const [aiFallback, setAiFallback] = useState(false);
+  const [stage, setStage] = useState<'Browsing' | 'Interested' | 'Booking'>('Browsing');
   const [chatBgUrl, setChatBgUrl] = useState<string | null>(() => {
     try { return localStorage.getItem('chat_bg_url') || 'https://res.cloudinary.com/dx1nrew3h/image/upload/v1772512677/aaaaa_w3eapq.jpg'; } catch { return 'https://res.cloudinary.com/dx1nrew3h/image/upload/v1772512677/aaaaa_w3eapq.jpg'; }
   });
@@ -181,6 +184,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       lead_temperature: 'warm',
       messageText: `Lead captured: ${name} | ${phone}`
     });
+    track('lead_capture', { name, phone });
     // Personalise first message (or add one if missing)
     let greeted = false;
     setMessages(prev => {
@@ -231,6 +235,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     setMessages(prev => [...prev, confirmMsg]);
 
     await finalizeSession();
+    track('booking_confirmed', { carId, carName, date, time });
   };
 
   const openWhatsApp = () => {
@@ -265,6 +270,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       lead_temperature: 'warm',
       messageText: `Transcript saved for ${leadInfo?.name || 'Unknown'}`
     });
+    track('transcript_emailed', { name: leadInfo?.name, phone: leadInfo?.phone });
   };
 
   const downloadTranscript = () => {
@@ -280,6 +286,36 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     a.download = `chat-transcript-${Date.now()}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+  const exportTranscriptPDF = () => {
+    const transcriptLines = messages.map(m => {
+      const who = m.sender === 'user' ? 'You' : 'Abena';
+      const time = m.timestamp.toLocaleString();
+      return `${who} [${time}]: ${m.text}`;
+    });
+    const html = `
+      <html>
+        <head>
+          <title>Chat Transcript</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #111; padding: 24px; }
+            h1 { font-size: 18px; margin: 0 0 12px; }
+            pre { white-space: pre-wrap; font-size: 12px; line-height: 1.4; }
+          </style>
+        </head>
+        <body>
+          <h1>Chat Transcript</h1>
+          <pre>${transcriptLines.join('\n')}</pre>
+        </body>
+      </html>
+    `;
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    w.print();
   };
 
 
@@ -874,10 +910,14 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     }, 48 * 60 * 60 * 1000);
   };
 
-  const typeOut = async (text: string, imgs?: string[], opts?: { showLocation?: boolean; quickReplies?: QuickReply[] }) => {
+  const typeOut = async (
+    text: string,
+    imgs?: string[],
+    opts?: { showLocation?: boolean; quickReplies?: QuickReply[]; budgetSlider?: Message['budgetSlider'] }
+  ) => {
     setIsTyping(true);
     const id = (Date.now() + Math.random()).toString();
-    setMessages(prev => [...prev, { id, text: '', sender: 'ai', timestamp: new Date(), aiImages: imgs, showLocation: opts?.showLocation }]);
+    setMessages(prev => [...prev, { id, text: '', sender: 'ai', timestamp: new Date(), aiImages: imgs, showLocation: opts?.showLocation, budgetSlider: opts?.budgetSlider }]);
     await new Promise(r => setTimeout(r, 700));
     const words = text.split(' ');
     let current = '';
@@ -893,7 +933,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       await new Promise(r => setTimeout(r, delay));
     }
     setIsTyping(false);
-    const finalMsg: Message = { id, text, sender: 'ai', timestamp: new Date(), aiImages: imgs, showLocation: opts?.showLocation, quickReplies: opts?.quickReplies };
+    const finalMsg: Message = { id, text, sender: 'ai', timestamp: new Date(), aiImages: imgs, showLocation: opts?.showLocation, quickReplies: opts?.quickReplies, budgetSlider: opts?.budgetSlider };
     setMessages(prev => prev.map(m => m.id === id ? { ...m, quickReplies: opts?.quickReplies } : m));
     logService.addMessageToSession(finalMsg);
     lastAiActivityRef.current = Date.now();
@@ -959,6 +999,17 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     return Math.min(100, score);
   };
 
+  useEffect(() => {
+    const score = computeLeadScore(messages);
+    const hasBooking = messages.some(m => m.bookingProposal) || messages.some(m => m.text.toLowerCase().includes('booking confirmed'));
+    let next: 'Browsing' | 'Interested' | 'Booking' = 'Browsing';
+    if (showHandoff || hasBooking) next = 'Booking';
+    else if (score >= 40 || messages.some(m => m.sender === 'user' && /budget|price|financing|test drive|viewing/i.test(m.text))) {
+      next = 'Interested';
+    }
+    setStage(next);
+  }, [messages, showHandoff]);
+
   const handleSendMessage = async (text: string, attachment?: Attachment) => {
     if (!text.trim() && !attachment) return;
     setIsAtBottom(true);
@@ -994,6 +1045,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     const currentMessages = [...messages];
     setMessages(prev => [...prev, userMessage]);
     logService.addMessageToSession(userMessage);
+    track('message_sent', { text, hasAttachment: !!attachment });
     const scoringMessages = [...currentMessages, userMessage];
     const leadScore = computeLeadScore(scoringMessages);
     const leadTemp = leadScore >= 70 ? 'hot' : leadScore >= 40 ? 'warm' : 'cold';
@@ -1051,8 +1103,11 @@ export function ChatArea({ onClose }: ChatAreaProps) {
           if (car) bookingProposal = { carId: car.id, carName: `${car.brand} ${car.model}` };
         }
         if (data.provider_used || data.fallback_used) {
-          // no-op: backup banner removed
-          if (data.provider_used === 'local_demo' || data.fallback_used) usedLocalDemo = true;
+          if (data.provider_used === 'local_demo' || data.fallback_used) {
+            usedLocalDemo = true;
+            setAiFallback(true);
+            setTimeout(() => setAiFallback(false), 8000);
+          }
           logService.addLog({
             intent: `provider:${data.provider_used || 'unknown'}`,
             lead_temperature: 'cold',
@@ -1100,15 +1155,18 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       if (usedLocalDemo || demoPhrase) {
         const name = leadInfo?.name;
         const shouldAddName = !!name && !nameGreeted;
-        const lastBudget = getLastBudget(currentMessages);
-        const lastProfile = getLastProfile(currentMessages);
-        const lastPriority = getLastPriority(currentMessages);
-        const lastFinancing = getLastFinancing(currentMessages);
-        const lastType = getLastType(currentMessages);
+        const lastBudget = getLastBudget(scoringMessages);
+        const lastProfile = getLastProfile(scoringMessages);
+        const lastPriority = getLastPriority(scoringMessages);
+        const lastFinancing = getLastFinancing(scoringMessages);
+        const lastType = getLastType(scoringMessages);
         const local = craftLocalReply(text, name, shouldAddName, lastBudget, lastProfile, lastPriority, lastFinancing, lastType);
         responseText = local.text;
         aiImages.splice(0, aiImages.length, ...local.aiImages);
         localQuickReplies = local.quickReplies;
+      }
+      if (!usedLocalDemo && !demoPhrase) {
+        setAiFallback(false);
       }
 
       const allCarsKeywords = ['show me all', 'all cars', 'all the cars', 'full list', 'show all', 'list all', 'show your cars', 'what cars', 'your inventory', 'all models'];
@@ -1124,11 +1182,34 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       const locationKeywordsEarly = ['location', 'address', 'where are you', 'office', 'showroom', 'map', 'directions', 'find you', 'locate'];
       const isLocationQueryEarly = locationKeywordsEarly.some(k => text.toLowerCase().includes(k));
 
+      const compareRequest = lowerUser.includes('compare') || lowerUser.includes(' vs ') || lowerUser.includes('versus');
+      const compareCandidates = compareRequest ? findCarsInText(text) : [];
+      const lastBudget = getLastBudget(scoringMessages);
+      const lastType = getLastType(scoringMessages);
+      const lastPriority = getLastPriority(scoringMessages);
+      const fallbackPicks = compareRequest ? rankCars(selectCars(lastBudget, lastType), lastPriority) : [];
+      const compareList = compareCandidates.length >= 2 ? compareCandidates : fallbackPicks;
+      const compareCard = compareRequest && compareList.length >= 2
+        ? { carId1: compareList[0].id, carId2: compareList[1].id }
+        : undefined;
+
+      const budgetPrompt = /budget|price range|how much|range/i.test(responseText.toLowerCase());
+      const budgetSlider = budgetPrompt
+        ? { min: 60000, max: 500000, step: 5000, unit: 'GHS' }
+        : undefined;
+
+      const scheduleWidget = bookingProposal
+        ? { carId: bookingProposal.carId, carName: bookingProposal.carName }
+        : undefined;
+
       const aiMsg: Message = {
         id: aiMsgId, text: '', sender: 'ai', timestamp: new Date(),
         aiImages: aiImages.length > 0 ? aiImages : undefined,
         bookingProposal,
-        showLocation: isLocationQueryEarly
+        showLocation: isLocationQueryEarly,
+        compareCard,
+        budgetSlider,
+        scheduleWidget
       };
       setMessages(prev => [...prev, aiMsg]);
 
@@ -1154,13 +1235,17 @@ export function ChatArea({ onClose }: ChatAreaProps) {
         id: aiMsgId, text: responseText, sender: 'ai', timestamp: new Date(),
         aiImages: aiImages.length > 0 ? aiImages : undefined, bookingProposal,
         quickReplies: localQuickReplies,
-        showLocation: isLocationQueryEarly
+        showLocation: isLocationQueryEarly,
+        compareCard,
+        budgetSlider,
+        scheduleWidget
       };
       setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, quickReplies: localQuickReplies } : m));
 
       // Keep conversation human â€” no extra quick replies after the first choice
 
       logService.addMessageToSession(finalMsg);
+      track('message_received', { length: finalMsg.text.length, images: (finalMsg.aiImages || []).length });
       lastAiActivityRef.current = Date.now();
       scheduleFollowUp();
 
@@ -1174,6 +1259,8 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       }
 
     } catch (error) {
+      setAiFallback(true);
+      setTimeout(() => setAiFallback(false), 8000);
       const lower = text.toLowerCase();
       const wantsInventory = lower.includes('inventory') || lower.includes('show cars') || lower.includes('show') || lower.includes('cars');
       if (wantsInventory) {
@@ -1247,7 +1334,11 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     }
     if (value === 'find_car') {
       setFlow({ stage: 'idle' });
-      await typeOut("Tell me your budget range and the type you want. I’ll suggest the best fit.");
+      await typeOut(
+        "Tell me your budget range and the type you want. I’ll suggest the best fit.",
+        undefined,
+        { budgetSlider: { min: 60000, max: 500000, step: 5000, unit: 'GHS' } }
+      );
       return;
     }
     if (value === 'view_inventory') {
@@ -1436,6 +1527,19 @@ export function ChatArea({ onClose }: ChatAreaProps) {
                 </>
               )}
             </div>
+            <div className="mt-1">
+              <div className="flex items-center gap-2 text-[9px] text-[#8696a0]">
+                {(['Browsing', 'Interested', 'Booking'] as const).map((s, i) => (
+                  <span key={s} className={s === stage ? 'text-[#00a884] font-bold' : ''}>{s}{i < 2 ? ' · ' : ''}</span>
+                ))}
+              </div>
+              <div className="mt-1 h-1 rounded-full bg-[#1f2c34] overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-[#00a884] to-[#25D366]"
+                  style={{ width: `${(stage === 'Browsing' ? 1 : stage === 'Interested' ? 2 : 3) / 3 * 100}%` }}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1466,6 +1570,9 @@ export function ChatArea({ onClose }: ChatAreaProps) {
           {/* Phone button removed */}
           <button onClick={downloadTranscript} title="Download Transcript" className="hover:bg-[#3b4a54] p-1 rounded-[6%] transition-colors">
             <Download className="w-[16px] h-[16px]" />
+          </button>
+          <button onClick={exportTranscriptPDF} title="Export PDF" className="hover:bg-[#3b4a54] p-1 rounded-[6%] transition-colors">
+            <FileText className="w-[16px] h-[16px]" />
           </button>
           <button onClick={finalizeSession} title="Email Transcript" className="hover:bg-[#3b4a54] p-1 rounded-[6%] transition-colors">
             <Share2 className="w-[16px] h-[16px]" />
@@ -1518,6 +1625,11 @@ export function ChatArea({ onClose }: ChatAreaProps) {
         }}
         className="flex-1 overflow-y-auto p-3 sm:p-4 z-10 min-h-0 custom-scroll"
       >
+        {aiFallback && (
+          <div className="mb-3 text-[11px] bg-[#2a3942] border border-[#3d4f5c] text-[#e9edef] px-3 py-2 rounded-lg">
+            AI provider is offline. Running in local demo mode — responses may be limited.
+          </div>
+        )}
         {/* Error toast */}
         {errorToast && (
           <div className="fixed left-1/2 -translate-x-1/2 top-20 z-[1001] bg-[#202c33] border border-[#2f3b43] text-[#e9edef] text-xs px-3 py-2 rounded-full shadow-lg">
@@ -1564,6 +1676,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
               key={msg.id}
               message={msg}
               onConfirmBooking={(carId, carName) => setBookingModal({ carId, carName })}
+              onScheduleBooking={(carId, carName, date, time) => handleBookingConfirm(carId, carName, date, time)}
               onReact={handleReact}
               onReply={handleReply}
               onEdit={handleEdit}

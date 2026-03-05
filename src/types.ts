@@ -30,7 +30,17 @@ export interface Message {
   timestamp: Date;
   attachment?: Attachment;
   aiImages?: string[];
+  budgetSlider?: {
+    min: number;
+    max: number;
+    step: number;
+    unit?: string;
+  };
   bookingProposal?: {
+    carId: string;
+    carName: string;
+  };
+  scheduleWidget?: {
     carId: string;
     carName: string;
   };
@@ -51,4 +61,20 @@ export interface Message {
   deleted?: boolean;
   reactions?: { emoji: string; count: number }[];
   readReceipt?: 'sent' | 'delivered' | 'read';
+}
+
+export interface Appointment {
+  id: string;
+  customerName: string;
+  phone?: string;
+  email?: string;
+  carId?: string;
+  carName?: string;
+  notes?: string;
+  location?: string;
+  startsAtIso: string;
+  endsAtIso: string;
+  createdAtIso: string;
+  confirmed?: boolean;
+  remindersRequested?: boolean;
 }

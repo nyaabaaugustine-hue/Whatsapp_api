@@ -25,8 +25,10 @@ module.exports = async function handler(req, res) {
         'mileage',
         'image_url',
         'real_image',
+        'image_urls',
         'insured',
-        'registered'
+        'registered',
+        'status'
       ].join(',');
       const url = `${SUPABASE_URL}/rest/v1/cars?select=${encodeURIComponent(select)}&order=year.desc,price.desc&limit=200`;
       const key = SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY;
@@ -69,8 +71,10 @@ module.exports = async function handler(req, res) {
         mileage: body.mileage,
         image_url: body.image_url,
         real_image: body.real_image || body.image_url,
+        image_urls: Array.isArray(body.image_urls) ? body.image_urls : null,
         insured: !!body.insured,
         registered: !!body.registered,
+        status: body.status || 'available',
       };
 
       const supabaseKey = SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY;

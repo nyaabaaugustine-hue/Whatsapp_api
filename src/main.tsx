@@ -2,12 +2,15 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { initAnalytics } from './services/analytics';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
   </StrictMode>,
 );
+
+initAnalytics();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

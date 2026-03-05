@@ -1,4 +1,4 @@
-﻿import { Message, Attachment } from "../types";
+import { Message, Attachment } from "../types";
 import { CAR_DATABASE } from "../data/cars";
 
 const inventoryString = CAR_DATABASE.map(c => `ID: ${c.id} | ${c.year} ${c.brand} ${c.model} | ₵${c.price.toLocaleString()}`).join('\n');
@@ -176,6 +176,43 @@ function parseLocation(input: string): string | undefined {
   return undefined;
 }
 
+function detectLanguage(text: string): string {
+  const lang = (typeof navigator !== 'undefined' && navigator.language) ? navigator.language : 'en';
+  const asciiRatio = (text.replace(/[^\x00-\x7F]/g, '').length) / Math.max(text.length, 1);
+  if (asciiRatio < 0.6 && !lang.startsWith('en')) return lang;
+  const hints = [
+    { k: ['bonjour','merci'], l: 'fr' },
+    { k: ['hola','gracias'], l: 'es' },
+    { k: ['hallo','danke'], l: 'de' },
+    { k: ['ciao','grazie'], l: 'it' },
+    { k: ['olá','obrigado'], l: 'pt' },
+  ];
+  for (const h of hints) {
+    if (h.k.some(w => text.toLowerCase().includes(w))) return h.l;
+  }
+  return lang || 'en';
+}
+
+function isToxicOrFraud(text: string): boolean {
+  const t = text.toLowerCase();
+  const toxic = ['insult','stupid','idiot','scam','fraud','fake','kill','hate','abuse'];
+  const fraud = ['carder','advance fee','419','mm','money doubling','bitcoin scam'];
+  return toxic.some(k => t.includes(k)) || fraud.some(k => t.includes(k));
+}
+
+function guardrailReply(lang: string) {
+  const map: Record<string,string> = {
+    fr: "Restons professionnels. Je peux vous aider à trouver une voiture adaptée — quel est votre budget et votre usage principal?",
+    es: "Mantengamos la conversación profesional. Te ayudo a encontrar el coche ideal — ¿tu presupuesto y uso principal?",
+    pt: "Vamos manter a conversa profissional. Posso ajudar a escolher o carro certo — qual é o seu orçamento e uso?",
+    de: "Lass uns professionell bleiben. Ich helfe dir, das passende Auto zu finden — Budget und Hauptnutzung?",
+    it: "Manteniamo un tono professionale. Ti aiuto a trovare l’auto giusta — budget e uso principale?",
+    en: "Let’s keep things professional. I can help you find the right car — what’s your budget and main use?",
+  };
+  const key = (lang || 'en').slice(0,2);
+  return map[key] || map.en;
+}
+
 export async function sendChatMessage(messages: Message[], newMessage: string, attachment?: Attachment, leadName?: string) {
   const conversationContext = messages
     .map(msg => `${msg.sender === 'user' ? 'User' : 'Assistant'}: ${msg.text}`)
@@ -190,6 +227,10 @@ export async function sendChatMessage(messages: Message[], newMessage: string, a
     budget: parseBudget(allText),
     location: parseLocation(allText),
   };
+  const userLang = detectLanguage(newMessage);
+  if (isToxicOrFraud(newMessage)) {
+    return guardrailReply(userLang);
+  }
 
   const localDemo = "Hello, Abena here from Drivemond.\nWhat best describes your purpose - family, business, ride-hailing, executive, or personal use?";
   if (typeof navigator !== 'undefined' && navigator?.onLine === false) {
@@ -207,7 +248,7 @@ ${conversationContext}
 
 User: ${newMessage}
 
-Abena (reply like a real human typing on WhatsApp, keep it short and natural):`;
+Abena (reply like a real human typing on WhatsApp, keep it short and natural). Reply language: ${userLang}:`;
 
   try {
     const freeLlmKey = (() => {
