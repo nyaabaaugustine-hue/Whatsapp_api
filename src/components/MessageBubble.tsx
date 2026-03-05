@@ -1,7 +1,7 @@
-﻿import { format } from 'date-fns';
+import { format } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
-import { Volume2, VolumeX, CalendarCheck, Check, Smartphone, Zap, Smile, Reply, Edit, Trash2, Clock } from 'lucide-react';
+import { Volume2, VolumeX, CalendarCheck, Check, Smartphone, Zap, Smile, Reply, Edit, Trash2, Clock, Heart, Search } from 'lucide-react';
 import { LocationCard } from './LocationCard';
 import { CarComparison } from './CarComparison';
 import { DepositCard } from './DepositCard';
@@ -82,6 +82,8 @@ function CarCard({ car: passedCar, url, onBook, className }: { car?: any; url?: 
       `Hi, I’m interested in the ${car.year} ${car.brand} ${car.model}. Can we chat?`
     )}`
     : 'https://wa.me/233504512884';
+  const shortlistLink = car ? '#shortlist' : '#shortlist';
+  const similarLink = car ? `#shortlist?similar=${encodeURIComponent(String(car.id))}` : '#shortlist';
 
   return (
     <div className={cn("rounded-2xl overflow-hidden mb-2.5 border border-[#2f3b43]/80 bg-[#111b21] shadow-lg", className)}>
@@ -175,6 +177,20 @@ function CarCard({ car: passedCar, url, onBook, className }: { car?: any; url?: 
               <CalendarCheck className="w-3.5 h-3.5" />
               Book Viewing
             </button>
+            <a
+              href={shortlistLink}
+              className="w-9 h-9 flex-shrink-0 rounded-[6%] flex items-center justify-center transition-all active:scale-95 border bg-[#2a3942] border-[#3d4f5c]/50 text-[#8696a0] hover:text-white hover:bg-[#3d4f5c]"
+              title="Add to Shortlist"
+            >
+              <Heart className="w-4 h-4" />
+            </a>
+            <a
+              href={similarLink}
+              className="w-9 h-9 flex-shrink-0 rounded-[6%] flex items-center justify-center transition-all active:scale-95 border bg-[#2a3942] border-[#3d4f5c]/50 text-[#8696a0] hover:text-white hover:bg-[#3d4f5c]"
+              title="Show Similar"
+            >
+              <Search className="w-4 h-4" />
+            </a>
             <a
               href={contactLink}
               target="_blank"

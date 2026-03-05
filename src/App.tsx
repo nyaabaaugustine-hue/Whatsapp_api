@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { ChatArea } from './components/ChatArea';
 import AdminDashboard from './pages/AdminDashboard';
 import InventoryPage from './pages/InventoryPage';
-import { X, MessageCircle, BadgeCheck, ShieldCheck, Fuel, Truck } from 'lucide-react';
+import { X, MessageCircle, BadgeCheck, ShieldCheck, Fuel, Truck, Heart, Sparkles } from 'lucide-react';
 import { CAR_DATABASE } from './data/cars';
 import { BookingModal } from './components/BookingModal';
 import { InstallPrompt } from './components/InstallPrompt';
+import ShortlistPanel from './components/ShortlistPanel';
 
 const WA_ICON = (
   <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor">
@@ -24,7 +25,7 @@ const formatPriceShort = (n: number) => {
 
 export default function App() {
   const [isOpen, setIsOpen] = useState(false);
-  const [view, setView] = useState<'home' | 'admin' | 'inventory'>('home');
+  const [view, setView] = useState<'home' | 'admin' | 'inventory' | 'shortlist' | 'wizard'>('home');
   const [cars, setCars] = useState(CAR_DATABASE);
   const featured = cars.slice(0, 3);
   const listing = cars.length > 6 ? cars.slice(3, 9) : cars.slice(0, 6);
@@ -50,6 +51,8 @@ export default function App() {
       const h = window.location.hash;
       if (h === '#admin') setView('admin');
       else if (h === '#inventory') setView('inventory');
+      else if (h.startsWith('#shortlist')) setView('shortlist');
+      else if (h === '#wizard') setView('wizard');
       else setView('home');
     };
     window.addEventListener('hashchange', handleHashChange);
@@ -102,6 +105,24 @@ export default function App() {
   if (view === 'inventory') {
     return <InventoryPage onBack={() => { window.location.hash = ''; }} />;
   }
+  if (view === 'shortlist') {
+    return (
+      <div className="min-h-screen bg-[#0f172a]">
+        <header className="border-b border-[#1e293b] bg-[#0f172a]">
+          <div className="max-w-6xl mx-auto px-5 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-[#e9edef] font-black text-xl">Drivemond</span>
+              <span className="text-xs text-white bg-[#800020] px-2 py-0.5 rounded-full font-black">Ghana</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => { window.location.hash = ''; }} className="text-[#e9edef] px-4 py-2 rounded-[7%] text-sm font-bold border border-[#2f3b43] hover:bg-[#13202a] transition">Back</button>
+            </div>
+          </div>
+        </header>
+        <ShortlistPanel onClose={() => { window.location.hash = ''; }} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0f172a] font-sans overflow-x-hidden">
@@ -118,6 +139,18 @@ export default function App() {
             >
               Call Developers
             </a>
+            <button
+              onClick={() => { window.location.hash = '#shortlist'; }}
+              className="inline-flex items-center gap-1 text-[#e9edef] px-4 py-2 rounded-[7%] text-sm font-bold border border-[#2f3b43] hover:bg-[#13202a] transition"
+            >
+              <Heart className="w-4 h-4" /> Shortlist
+            </button>
+            <button
+              onClick={() => { window.location.hash = '#wizard'; alert('Guided wizard coming soon.'); }}
+              className="inline-flex items-center gap-1 text-[#e9edef] px-4 py-2 rounded-[7%] text-sm font-bold border border-[#2f3b43] hover:bg-[#13202a] transition"
+            >
+              <Sparkles className="w-4 h-4" /> Wizard
+            </button>
           </div>
         </div>
       </header>
