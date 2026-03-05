@@ -74,6 +74,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [flow, setFlow] = useState<{ stage: 'idle' | 'budget' | 'type' | 'timeline' | 'results'; budget?: string; carType?: string; timeline?: string }>({ stage: 'idle' });
+  const [openQuestion, setOpenQuestion] = useState<'purpose' | 'priority' | 'financing' | 'budget' | 'type' | null>(null);
 
   // Type out greeting word-by-word on mount (after lead modal dismissed)
   useEffect(() => {
@@ -1114,7 +1115,66 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     setPresetText('');
 
     try {
-      let responseText = await sendChatMessage(currentMessages, text, attachment, leadInfo?.name);
+      const answered = (() => {
+        if (!openQuestion) return true;
+        const t = text;
+        if (openQuestion === 'purpose') return !!parseBuyerProfile(t);
+        if (openQuestion === 'priority') return !!parsePriority(t);
+        if (openQuestion === 'financing') return !!parseFinancing(t);
+        if (openQuestion === 'budget') return !!parseBudget(t);
+        if (openQuestion === 'type') return !!parseType(t);
+        return true;
+      })();
+      if (answered && openQuestion) setOpenQuestion(null);
+      if (!answered) {
+        let prompt = '';
+        let qr: QuickReply[] | undefined;
+        if (openQuestion === 'purpose') {
+          prompt = 'What best describes your purpose?';
+          qr = [
+            { id: 'p_family', text: 'Family Use', value: 'Family Use' },
+            { id: 'p_business', text: 'Business', value: 'Business Use' },
+            { id: 'p_ride', text: 'Ride-hailing', value: 'Ride-Hailing' },
+            { id: 'p_exec', text: 'Executive', value: 'Executive' },
+            { id: 'p_personal', text: 'Personal Use', value: 'Personal Use' }
+          ];
+        } else if (openQuestion === 'priority') {
+          prompt = 'What matters most to you?';
+          qr = [
+            { id: 'pr_fuel', text: 'Fuel Efficiency', value: 'Fuel Efficiency' },
+            { id: 'pr_maint', text: 'Easy Maintenance', value: 'Easy Maintenance' },
+            { id: 'pr_resale', text: 'Strong Resale Value', value: 'Strong Resale Value' },
+            { id: 'pr_comfort', text: 'Comfort', value: 'Comfort' }
+          ];
+        } else if (openQuestion === 'financing') {
+          prompt = 'Are you paying full or financing?';
+          qr = [
+            { id: 'pay_full', text: 'Paying Full', value: 'pay in full' },
+            { id: 'pay_fin', text: 'Financing', value: 'financing' }
+          ];
+        } else if (openQuestion === 'budget') {
+          prompt = "What's your comfortable budget range?";
+          qr = [
+            { id: 'b_under_100', text: 'Under GHS 100k', value: 'under_100k' },
+            { id: 'b_150', text: 'GHS 150k', value: '150000' },
+            { id: 'b_200', text: 'GHS 200k', value: '200000' },
+            { id: 'b_250', text: 'GHS 250k', value: '250000' },
+            { id: 'b_300_plus', text: 'GHS 300k & above', value: '300000+' }
+          ];
+        } else if (openQuestion === 'type') {
+          prompt = 'Which type should I show — SUV, sedan, or pickup?';
+          qr = [
+            { id: 'type_suv', text: 'SUV', value: 'SUV' },
+            { id: 'type_sedan', text: 'Sedan', value: 'Sedan' },
+            { id: 'type_pickup', text: 'Pickup', value: 'Pickup' },
+            { id: 'type_any', text: 'Any', value: 'any' }
+          ];
+        }
+        await typeOut(prompt, undefined, { quickReplies: qr });
+        setIsLoading(false);
+        return;
+      }
+      let responseText = await sendChatMessage(currentMessages, text, attachment, leadInfo?.name, openQuestion || undefined as any);
       const aiImages: string[] = [];
       let bookingProposal: { carId: string; carName: string } | undefined;
       let usedLocalDemo = false;
@@ -1277,6 +1337,16 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       // Keep conversation human â€” no extra quick replies after the first choice
 
       logService.addMessageToSession(finalMsg);
+      const qr = localQuickReplies || finalMsg.quickReplies;
+      if (budgetSlider) setOpenQuestion('budget');
+      else if (qr && qr.length) {
+        const ids = qr.map(q => q.id).join(' ');
+        if (/(\bp_)/.test(ids)) setOpenQuestion('purpose');
+        else if (/(\bpr_)/.test(ids)) setOpenQuestion('priority');
+        else if (/(\bpay_)/.test(ids)) setOpenQuestion('financing');
+        else if (/(\btype_)/.test(ids)) setOpenQuestion('type');
+        else if (/(\bb_)/.test(ids)) setOpenQuestion('budget');
+      }
       track('message_received', { length: finalMsg.text.length, images: (finalMsg.aiImages || []).length });
       lastAiActivityRef.current = Date.now();
       scheduleFollowUp();

@@ -53,14 +53,14 @@ export function QuickReplies({ replies, onSelect }: QuickRepliesProps) {
   };
 
   return (
-    <div className="flex flex-wrap gap-2 mt-2 mb-1">
+    <div className="flex flex-wrap gap-1.5 mt-2 mb-1">
       {replies.map((reply) => (
         <button
           key={reply.id}
           onClick={() => onSelect(reply.value, reply.text)}
-          className="inline-flex items-center gap-2 bg-[#0b141a] hover:bg-[#0f2d25] text-[#dff8f0] px-3.5 py-1.5 rounded-[8%] text-[14px] font-semibold transition-colors border border-[#25D366] shadow-sm"
+          className="inline-flex items-center gap-1.5 bg-[#0b141a] hover:bg-[#0f2d25] text-[#dff8f0] px-3 py-1 rounded-[6%] text-[12px] font-semibold transition-colors border border-[#25D366] shadow-sm"
         >
-          <span className="inline-flex items-center justify-center w-4.5 h-4.5 rounded-full bg-[#25D366] text-[#0b141a]">
+          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#25D366] text-[#0b141a]">
             {iconFor(reply)}
           </span>
           {reply.text}

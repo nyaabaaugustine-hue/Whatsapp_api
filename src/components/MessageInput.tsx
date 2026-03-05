@@ -186,10 +186,10 @@ export function MessageInput({ onSendMessage, isLoading, replyingTo, onClearRepl
       <div className="flex items-center px-4 py-2 w-full">
         <div className="flex space-x-4 text-[#8696a0] mr-4">
           <button onClick={() => setShowEmoji(!showEmoji)} className="hover:text-[#d1d7db] transition-colors">
-            <Smile className="w-[26px] h-[26px]" />
+            <Smile className="w-[22px] h-[22px]" />
           </button>
           <button onClick={() => fileInputRef.current?.click()} className="hover:text-[#d1d7db] transition-colors">
-            <Paperclip className="w-[26px] h-[26px]" />
+            <Paperclip className="w-[22px] h-[22px]" />
           </button>
           <input 
             type="file" 
@@ -203,7 +203,7 @@ export function MessageInput({ onSendMessage, isLoading, replyingTo, onClearRepl
         <div className="flex-1 bg-[#2a3942] rounded-[8px] px-4 py-2 flex items-center shadow-sm">
           {isRecording ? (
             <div className="flex items-center text-[#f15c6d] animate-pulse w-full">
-              <Mic className="w-5 h-5 mr-2" />
+              <Mic className="w-4 h-4 mr-2" />
               <span className="text-[15px] font-normal">Recording... {formatTime(recordingTime)}</span>
             </div>
           ) : (
@@ -227,11 +227,11 @@ export function MessageInput({ onSendMessage, isLoading, replyingTo, onClearRepl
               disabled={isLoading}
               className="hover:text-[#d1d7db] transition-colors disabled:opacity-50"
             >
-              <Send className="w-[26px] h-[26px] text-[#00a884]" />
+              <Send className="w-[22px] h-[22px] text-[#00a884]" />
             </button>
           ) : isRecording ? (
             <button onClick={stopRecording} className="hover:text-[#f15c6d] text-[#f15c6d] transition-colors">
-              <Square className="w-[26px] h-[26px] fill-current" />
+              <Square className="w-[22px] h-[22px] fill-current" />
             </button>
           ) : (
             <button 
@@ -240,7 +240,7 @@ export function MessageInput({ onSendMessage, isLoading, replyingTo, onClearRepl
               className="hover:text-[#d1d7db] transition-colors disabled:opacity-50"
               title="Voice Note"
             >
-              <Mic className="w-[26px] h-[26px]" />
+              <Mic className="w-[22px] h-[22px]" />
             </button>
           )}
         </div>

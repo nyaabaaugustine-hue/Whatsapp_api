@@ -213,7 +213,7 @@ function guardrailReply(lang: string) {
   return map[key] || map.en;
 }
 
-export async function sendChatMessage(messages: Message[], newMessage: string, attachment?: Attachment, leadName?: string) {
+export async function sendChatMessage(messages: Message[], newMessage: string, attachment?: Attachment, leadName?: string, pendingQuestion?: string) {
   const conversationContext = messages
     .map(msg => `${msg.sender === 'user' ? 'User' : 'Assistant'}: ${msg.text}`)
     .join('\n');
@@ -242,6 +242,8 @@ export async function sendChatMessage(messages: Message[], newMessage: string, a
 Customer name (use naturally, not every message): ${leadName || 'unknown'}
 Known memory (use if present):
 ${JSON.stringify(memory)}
+
+Open question pending (answer this before asking anything else): ${pendingQuestion || 'none'}
 
 Previous conversation:
 ${conversationContext}
