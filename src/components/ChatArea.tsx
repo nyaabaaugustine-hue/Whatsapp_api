@@ -207,6 +207,21 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       messageText: `Lead captured: ${name} | ${phone}`
     });
     track('lead_capture', { name, phone });
+    (async () => {
+      try {
+        await fetch('/api/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: 'josemorgan120@gmail.com',
+            subject: `New Lead: ${name}`,
+            html: `<h2>New Lead</h2><p><strong>Name:</strong> ${name}</p><p><strong>WhatsApp:</strong> ${phone}</p>`
+          })
+        });
+        setErrorToast('Lead sent to admin.');
+        setTimeout(() => setErrorToast(null), 2500);
+      } catch {}
+    })();
     // Personalise first message (or add one if missing)
     let greeted = false;
     setMessages(prev => {
