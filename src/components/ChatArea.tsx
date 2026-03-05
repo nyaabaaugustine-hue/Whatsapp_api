@@ -421,6 +421,11 @@ export function ChatArea({ onClose }: ChatAreaProps) {
 
   function parsePriority(input: string): string | undefined {
     const s = input.toLowerCase();
+    const trimmed = s.trim();
+    if (/^1$/.test(trimmed)) return 'Fuel Efficiency';
+    if (/^2$/.test(trimmed)) return 'Easy Maintenance';
+    if (/^3$/.test(trimmed)) return 'Strong Resale Value';
+    if (/^4$/.test(trimmed)) return 'Comfort';
     if (s.includes('fuel')) return 'Fuel Efficiency';
     if (s.includes('maintenance') || s.includes('service')) return 'Easy Maintenance';
     if (s.includes('resale') || s.includes('resell')) return 'Strong Resale Value';
@@ -491,7 +496,9 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       if (within.length > 0) {
         cars = within.sort((a, b) => Math.abs(a.price - budget) - Math.abs(b.price - budget));
       } else {
-        return [];
+        // Fallback: show lowest-priced viable options to guide buyer upward
+        const lowest = cars.slice().sort((a, b) => a.price - b.price).slice(0, 3);
+        return lowest;
       }
     }
     return cars.slice(0, 3);
@@ -823,17 +830,34 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       }
       return { text: lines.join('\n'), aiImages: imgs, quickReplies };
     } else {
-      lines.push("I can bring a strong value-focused option as soon as it lands.");
-      lines.push(`Most verified units start around GHS ${minPrice.toLocaleString()}.`);
-      lines.push("Should I alert you the moment one arrives?");
-      return {
-        text: lines.join('\n'),
-        aiImages: [],
-        quickReplies: [
-          { id: 'alert_yes2', text: 'Yes, alert me', value: 'alert_me' },
-          { id: 'alert_no2', text: 'Not now', value: 'not_now' }
-        ]
-      };
+      const lowest = CAR_DATABASE.slice().sort((a, b) => a.price - b.price).slice(0, 2);
+      if (lowest.length) {
+        lines.push(`Clean, verified cars typically start around GHS ${minPrice.toLocaleString()}.`);
+        lines.push(`Closest strong value in our lineup: ${lowest[0].brand} ${lowest[0].model}.`);
+        if (lowest[1]) lines.push(`Alternative: ${lowest[1].brand} ${lowest[1].model}.`);
+        lines.push("Reasons to consider: low running costs, easy maintenance, proven reliability.");
+        lines.push("If you like, I can help you stretch slightly for a better long-term value.");
+        return {
+          text: lines.join('\n'),
+          aiImages: shouldAttachImages ? lowest.slice(0, 2).map(c => ((c as any).real_image || c.image_url)) : [],
+          quickReplies: [
+            { id: 'show_photos', text: 'Show Cars', value: 'show_photos' },
+            { id: 'reserve_yes', text: 'Reserve Viewing', value: 'reserve_viewing' }
+          ]
+        };
+      } else {
+        lines.push("I can bring a strong value-focused option as soon as it lands.");
+        lines.push(`Most verified units start around GHS ${minPrice.toLocaleString()}.`);
+        lines.push("Should I alert you the moment one arrives?");
+        return {
+          text: lines.join('\n'),
+          aiImages: [],
+          quickReplies: [
+            { id: 'alert_yes2', text: 'Yes, alert me', value: 'alert_me' },
+            { id: 'alert_no2', text: 'Not now', value: 'not_now' }
+          ]
+        };
+      }
     }
     return { text: lines.join('\n'), aiImages: imgs, quickReplies };
   }
@@ -913,8 +937,10 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     } catch {}
     followUpTimerRef.current = window.setTimeout(() => {
       const now = Date.now();
-      if (now - lastUserActivityRef.current < 90000) return;
-      if (now - lastAiActivityRef.current < 90000) return;
+      if (now - lastUserActivityRef.current < 150000) return;
+      if (now - lastAiActivityRef.current < 150000) return;
+      const last = messages[messages.length - 1];
+      if (last && (last.quickReplies?.length || last.bookingProposal || last.budgetSlider)) return;
       const followUpMsg: Message = {
         id: (Date.now() + 2).toString(),
         text: "Still with me? I can compare these options for you.",
@@ -928,7 +954,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       };
       setMessages(prev => [...prev, followUpMsg]);
       logService.addMessageToSession(followUpMsg);
-    }, 90000);
+    }, 150000);
 
     followUp24hRef.current = window.setTimeout(() => {
       const t = Date.now();
