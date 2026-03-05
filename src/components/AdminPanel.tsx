@@ -18,10 +18,11 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [serverEvents, setServerEvents] = useState<any[]>([]);
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     setLogs([...logService.getLogs()]);
     setBookings([...logService.getBookings()]);
-    setChatSessions([...logService.getChatSessions()]);
+    const sessions = await logService.getChatSessions();
+    setChatSessions([...sessions]);
     setLastRefresh(new Date());
   }, []);
 
@@ -45,14 +46,15 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
 
   const handleClearData = () => {
     if (window.confirm('Clear ALL dashboard data? This cannot be undone.')) {
-      logService.clearAllData();
+      logService.clearLogs();
       setServerEvents([]);
       refresh();
     }
   };
 
   const downloadJSON = async () => {
-    const blob = new Blob([logService.exportToJSON()], { type: 'application/json' });
+    const jsonData = await logService.exportToJSON();
+    const blob = new Blob([jsonData], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url;
     a.download = `abena-data-${new Date().toISOString().split('T')[0]}.json`;
@@ -60,15 +62,17 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   };
 
   const downloadCSV = async () => {
-    const blob = new Blob([logService.exportToCSV()], { type: 'text/csv' });
+    const csvData = await logService.exportToCSV();
+    const blob = new Blob([csvData], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url;
     a.download = `sessions-${new Date().toISOString().split('T')[0]}.csv`;
     a.click(); URL.revokeObjectURL(url);
   };
 
-  const downloadBookingsCSV = () => {
-    const blob = new Blob([logService.exportBookingsToCSV()], { type: 'text/csv' });
+  const downloadBookingsCSV = async () => {
+    const csvData = await logService.exportToCSV();
+    const blob = new Blob([csvData], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url;
     a.download = `bookings-${new Date().toISOString().split('T')[0]}.csv`;

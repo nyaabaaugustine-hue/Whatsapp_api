@@ -265,7 +265,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
   const handleBookingConfirm = async (carId: string, carName: string, date: string, time: string) => {
     setBookingModal(null);
     setShowHandoff(true);
-    const booking = logService.addBooking({
+    const booking = await logService.addBooking({
       car_id: carId,
       customer_email: leadInfo?.phone || 'unknown',
       status: 'confirmed'

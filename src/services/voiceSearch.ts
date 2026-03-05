@@ -1,3 +1,11 @@
+// TypeScript declarations for Web Speech API
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
+
 interface VoiceSearchResult {
   query: string;
   filters: {
@@ -13,12 +21,12 @@ interface VoiceSearchResult {
 }
 
 class VoiceSearchService {
-  private recognition: SpeechRecognition | null = null;
+  private recognition: any | null = null;
   private isListening = false;
 
   constructor() {
     if (typeof window !== 'undefined') {
-      const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
         this.recognition = new SpeechRecognition();
         this.setupRecognition();
