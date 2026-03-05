@@ -549,9 +549,11 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     const isFarewell = ['bye', 'goodbye', 'thank you', 'thanks', 'see you', 'later', 'gtg', 'gotta go', 'have to go'].some(k => lower.includes(k));
     
     // Detect "show more" / "what else" requests
-    const wantsMore = ['what else', 'show more', 'more options', 'other options', 'alternatives', 'something else', 'different', 'another'].some(k => lower.includes(k));
+    const wantsMore = ['what else', 'show more', 'more options', 'other options', 'alternatives', 'something else', 'different', 'another', 'more images'].some(k => lower.includes(k));
     
-    const askedForPhotos = ['photo', 'photos', 'picture', 'pictures', 'image', 'images', 'show', 'see', 'view'].some(k => lower.includes(k));
+    // Detect photo requests - be more specific to avoid false positives
+    const askedForPhotos = (lower.includes('photo') || lower.includes('picture') || lower.includes('image')) && 
+                           (lower.includes('show') || lower.includes('see') || lower.includes('view') || lower === 'photos' || lower === 'images');
     const askedInventory = ['inventory', 'all cars', 'all the cars', 'full list', 'show all', 'list all', 'what do you have'].some(k => lower.includes(k));
     const askedLocation = ['location', 'address', 'where are you', 'showroom', 'office', 'map', 'directions'].some(k => lower.includes(k));
     const askedAlert = ['alert', 'notify', 'let me know', 'call me', 'text me', 'message me'].some(k => lower.includes(k));
@@ -575,6 +577,20 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       lines.push("Our sales team is available 24/7 on WhatsApp: +233504512884");
       lines.push("Drive safe! 🚗");
       return { text: lines.join('\n'), aiImages: [], quickReplies: undefined };
+    }
+    
+    // Handle photo requests - just show cars without repeating recommendation
+    if (askedForPhotos && !wantsMore && picks.length > 0) {
+      const photoCars = picks.slice(0, 2);
+      return {
+        text: `Here are the ${photoCars.length === 1 ? 'car' : 'cars'}:`,
+        aiImages: photoCars.map(c => ((c as any).real_image || c.image_url)),
+        quickReplies: [
+          { id: 'book_view', text: 'Book Viewing', value: 'reserve_viewing' },
+          { id: 'more_opts', text: 'More Options', value: 'more_options' },
+          { id: 'talk_sales', text: 'Talk to Sales', value: 'talk_sales' }
+        ]
+      };
     }
     
     // Handle "show more" / "what else" requests
