@@ -1,4 +1,5 @@
 import { CAR_DATABASE } from '../data/cars';
+import { deriveVehicleType } from './vehicleType';
 
 export type ShortlistItem = {
   id: string;
@@ -77,21 +78,10 @@ export function shortlistShareText(): string {
 export function findSimilar(seedId: string, limit = 6): ShortlistItem[] {
   const seed = CAR_DATABASE.find(c => String(c.id) === String(seedId));
   if (!seed) return [];
-  const seedType = (() => {
-    const b = seed.brand.toLowerCase();
-    const m = seed.model.toLowerCase();
-    if (['rav4','cr-v','rx'].some(x => m.includes(x))) return 'SUV';
-    if (m.includes('f-150')) return 'Pickup';
-    if (['mercedes-benz','lexus'].some(x => b.includes(x))) return 'Luxury';
-    return 'Sedan';
-  })();
+  const seedType = deriveVehicleType(seed.brand, seed.model);
   const scores = CAR_DATABASE.map((c: any) => {
-    const typeScore = (() => {
-      const b = c.brand.toLowerCase();
-      const m = c.model.toLowerCase();
-      const t = ['rav4','cr-v','rx'].some(x => m.includes(x)) ? 'SUV' : m.includes('f-150') ? 'Pickup' : (['mercedes-benz','lexus'].some(x => b.includes(x)) ? 'Luxury' : 'Sedan');
-      return t === seedType ? 3 : 0;
-    })();
+    const t = deriveVehicleType(c.brand, c.model);
+    const typeScore = t === seedType ? 3 : 0;
     const brandScore = c.brand === seed.brand ? 2 : 0;
     const priceDiff = Math.abs(Number(c.price || 0) - Number(seed.price || 0));
     const priceScore = priceDiff < 20000 ? 2 : priceDiff < 50000 ? 1 : 0;

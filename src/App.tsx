@@ -7,6 +7,7 @@ import { CAR_DATABASE } from './data/cars';
 import { BookingModal } from './components/BookingModal';
 import { InstallPrompt } from './components/InstallPrompt';
 import ShortlistPanel from './components/ShortlistPanel';
+import GuidedWizardPlaceholder from './components/GuidedWizardPlaceholder';
 
 const WA_ICON = (
   <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor">
@@ -70,12 +71,18 @@ export default function App() {
         const data = await res.json();
         const list = Array.isArray(data?.cars) ? data.cars : [];
         if (active && list.length > 0) {
-          setCars(list);
+          const merged = (() => {
+            const byId = new Map<string, any>();
+            for (const c of CAR_DATABASE) byId.set(String(c.id), c);
+            for (const c of list) byId.set(String(c.id), { ...c });
+            return Array.from(byId.values());
+          })();
+          setCars(merged);
           try {
-            const copy = new Response(JSON.stringify({ cars: list }), { headers: { 'Content-Type': 'application/json' } });
+            const copy = new Response(JSON.stringify({ cars: merged }), { headers: { 'Content-Type': 'application/json' } });
             const cache = await caches.open('drv-cache-v2');
             await cache.put(req, copy);
-            const imgs = list.map((c: any) => c.real_image || c.image_url).filter(Boolean);
+            const imgs = merged.map((c: any) => c.real_image || c.image_url).filter(Boolean);
             await Promise.all(imgs.slice(0, 20).map(async (url: string) => {
               try {
                 const r = await fetch(url, { mode: 'no-cors' });
@@ -104,6 +111,9 @@ export default function App() {
   }
   if (view === 'inventory') {
     return <InventoryPage onBack={() => { window.location.hash = ''; }} />;
+  }
+  if (view === 'wizard') {
+    return <GuidedWizardPlaceholder onBack={() => { window.location.hash = ''; }} />;
   }
   if (view === 'shortlist') {
     return (
@@ -146,7 +156,7 @@ export default function App() {
               <Heart className="w-4 h-4" /> Shortlist
             </button>
             <button
-              onClick={() => { window.location.hash = '#wizard'; alert('Guided wizard coming soon.'); }}
+              onClick={() => { window.location.hash = '#wizard'; }}
               className="inline-flex items-center gap-1 text-[#e9edef] px-4 py-2 rounded-[7%] text-sm font-bold border border-[#2f3b43] hover:bg-[#13202a] transition"
             >
               <Sparkles className="w-4 h-4" /> Wizard
@@ -372,4 +382,3 @@ export default function App() {
     </div>
   );
 }
-

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { MoreVertical, Phone, X, Share2, Volume2, VolumeX, Download, FileText } from 'lucide-react';
+import { MoreVertical, Phone, X, Share2, Volume2, VolumeX, Download, FileText, HelpCircle } from 'lucide-react';
+import ExpertFormModal from './ExpertFormModal';
 import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
 import { LeadCaptureModal } from './LeadCaptureModal';
@@ -41,6 +42,10 @@ export function ChatArea({ onClose }: ChatAreaProps) {
   const [stage, setStage] = useState<'Browsing' | 'Interested' | 'Booking'>('Browsing');
   const [chatBgUrl, setChatBgUrl] = useState<string | null>(() => {
     try { return localStorage.getItem('chat_bg_url') || 'https://res.cloudinary.com/dx1nrew3h/image/upload/v1772512677/aaaaa_w3eapq.jpg'; } catch { return 'https://res.cloudinary.com/dx1nrew3h/image/upload/v1772512677/aaaaa_w3eapq.jpg'; }
+  });
+  const [showExpert, setShowExpert] = useState(false);
+  const [serviceDue, setServiceDue] = useState<boolean>(() => {
+    try { return (localStorage.getItem('__service_due__') || '1') === '1'; } catch { return true; }
   });
   const lastLeadScoreRef = useRef<number | null>(null);
   const followUpTimerRef = useRef<number | null>(null);
@@ -124,6 +129,23 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       window.removeEventListener('offline', off);
     };
   }, []);
+
+  const triggerServiceBooking = () => {
+    const msgId = (Date.now() + 2).toString();
+    const aiMsg: Message = {
+      id: msgId,
+      text: 'Service Booking\nChoose a preferred day and we’ll confirm your slot.',
+      sender: 'ai',
+      timestamp: new Date(),
+      quickReplies: [
+        { id: 'svc_weekday', text: 'Weekday', value: 'weekday' },
+        { id: 'svc_weekend', text: 'Weekend', value: 'weekend' },
+        { id: 'svc_call', text: 'Talk to Service', value: 'talk_service' },
+      ]
+    };
+    setMessages(prev => [...prev, aiMsg]);
+    try { localStorage.setItem('__service_due__', '0'); setServiceDue(false); } catch {}
+  };
 
   useEffect(() => {
     try {
@@ -1479,6 +1501,9 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       {showLeadModal && (
         <LeadCaptureModal onSubmit={handleLeadSubmit} />
       )}
+      {showExpert && (
+        <ExpertFormModal onClose={() => setShowExpert(false)} prefill={{ name: leadInfo?.name, phone: leadInfo?.phone }} />
+      )}
 
       {/* Booking Modal */}
       {bookingModal && (
@@ -1544,6 +1569,15 @@ export function ChatArea({ onClose }: ChatAreaProps) {
         </div>
 
         <div className="flex items-center gap-0.5 text-[#aebac1] flex-shrink-0">
+          {serviceDue && (
+            <div className="mr-2 inline-flex items-center gap-2 bg-[#003d32] text-[#25D366] border border-[#05846e] px-2 py-1 rounded-full text-[10px] font-bold">
+              <span className="w-2 h-2 rounded-full bg-[#25D366]" />
+              Service due
+              <button onClick={triggerServiceBooking} className="ml-1 bg-[#25D366] text-[#0b141a] px-2 py-0.5 rounded-full border border-[#25D366]/50 hover:opacity-90">
+                Book
+              </button>
+            </div>
+          )}
           {/* WhatsApp Handoff */}
           <button
             onClick={openWhatsApp}
@@ -1581,6 +1615,9 @@ export function ChatArea({ onClose }: ChatAreaProps) {
           {/* Clear */}
           <button onClick={clearChat} className="hover:bg-[#3b4a54] p-1 rounded-[6%] transition-colors">
             <MoreVertical className="w-[18px] h-[18px]" />
+          </button>
+          <button onClick={() => setShowExpert(true)} title="Ask Expert" className="hover:bg-[#3b4a54] p-1 rounded-[6%] transition-colors">
+            <HelpCircle className="w-[18px] h-[18px]" />
           </button>
 
           {/* Close */}

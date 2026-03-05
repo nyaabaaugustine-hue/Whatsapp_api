@@ -1,7 +1,9 @@
 import { format } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
-import { Volume2, VolumeX, CalendarCheck, Check, Smartphone, Zap, Smile, Reply, Edit, Trash2, Clock, Heart, Search } from 'lucide-react';
+import { Volume2, VolumeX, CalendarCheck, Check, Smartphone, Zap, Smile, Reply, Edit, Trash2, Clock, Heart, Search, Image as ImageIcon } from 'lucide-react';
+import { addSavedLater } from '../services/savedLater';
+import { estimateMonthlyCost } from '../services/ownershipCostService';
 import { LocationCard } from './LocationCard';
 import { CarComparison } from './CarComparison';
 import { DepositCard } from './DepositCard';
@@ -84,6 +86,15 @@ function CarCard({ car: passedCar, url, onBook, className }: { car?: any; url?: 
     : 'https://wa.me/233504512884';
   const shortlistLink = car ? '#shortlist' : '#shortlist';
   const similarLink = car ? `#shortlist?similar=${encodeURIComponent(String(car.id))}` : '#shortlist';
+  const saveLater = () => {
+    if (!car) return;
+    addSavedLater(String(car.id), `${car.brand} ${car.model} · ₵${car.price.toLocaleString()}`, 24);
+  };
+  const requestPhotos = () => {
+    if (!car) return;
+    alert('Request sent — we will share more photos shortly.');
+  };
+  const ownershipCost = car ? estimateMonthlyCost(car as any) : null;
 
   return (
     <div className={cn("rounded-2xl overflow-hidden mb-2.5 border border-[#2f3b43]/80 bg-[#111b21] shadow-lg", className)}>
@@ -177,6 +188,11 @@ function CarCard({ car: passedCar, url, onBook, className }: { car?: any; url?: 
               <CalendarCheck className="w-3.5 h-3.5" />
               Book Viewing
             </button>
+            {ownershipCost !== null && (
+              <span className="px-2 py-1 text-[10px] rounded-[6%] bg-[#2a3942] text-[#aebac1] border border-[#3d4f5c]/50" title="Estimated monthly ownership cost">
+                ₵{Number(ownershipCost).toLocaleString()}/mo
+              </span>
+            )}
             <a
               href={shortlistLink}
               className="w-9 h-9 flex-shrink-0 rounded-[6%] flex items-center justify-center transition-all active:scale-95 border bg-[#2a3942] border-[#3d4f5c]/50 text-[#8696a0] hover:text-white hover:bg-[#3d4f5c]"
@@ -184,6 +200,20 @@ function CarCard({ car: passedCar, url, onBook, className }: { car?: any; url?: 
             >
               <Heart className="w-4 h-4" />
             </a>
+            <button
+              onClick={saveLater}
+              className="w-9 h-9 flex-shrink-0 rounded-[6%] flex items-center justify-center transition-all active:scale-95 border bg-[#2a3942] border-[#3d4f5c]/50 text-[#8696a0] hover:text-white hover:bg-[#3d4f5c]"
+              title="Save for later"
+            >
+              <Clock className="w-4 h-4" />
+            </button>
+            <button
+              onClick={requestPhotos}
+              className="w-9 h-9 flex-shrink-0 rounded-[6%] flex items-center justify-center transition-all active:scale-95 border bg-[#2a3942] border-[#3d4f5c]/50 text-[#8696a0] hover:text-white hover:bg-[#3d4f5c]"
+              title="Request more photos"
+            >
+              <ImageIcon className="w-4 h-4" />
+            </button>
             <a
               href={similarLink}
               className="w-9 h-9 flex-shrink-0 rounded-[6%] flex items-center justify-center transition-all active:scale-95 border bg-[#2a3942] border-[#3d4f5c]/50 text-[#8696a0] hover:text-white hover:bg-[#3d4f5c]"

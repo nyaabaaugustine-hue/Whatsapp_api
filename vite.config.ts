@@ -554,6 +554,73 @@ END:VCALENDAR`;
                 return res.end(JSON.stringify({ error: e?.message ?? 'Server error' }));
               }
             }
+            if (req.url?.startsWith('/api/config/ownership') && req.method === 'GET') {
+              res.setHeader('Access-Control-Allow-Origin', '*');
+              res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+              res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+              try {
+                const SUPABASE_URL = env.SUPABASE_URL;
+                const SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY;
+                const SUPABASE_SERVICE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
+                const hasSupabase = !!(SUPABASE_URL && (SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY));
+                if (!hasSupabase) {
+                  res.statusCode = 200;
+                  return res.end(JSON.stringify({}));
+                }
+                const key = SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY;
+                const url = `${SUPABASE_URL}/rest/v1/ownership_config?select=sedan_base,suv_base,pickup_base,luxury_base,service_avg,insurance_avg&order=updated_at.desc&limit=1`;
+                const r = await fetch(url, {
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': key!,
+                    'Authorization': `Bearer ${key}`,
+                  },
+                });
+                if (!r.ok) {
+                  res.statusCode = 200;
+                  return res.end(JSON.stringify({}));
+                }
+                const list = await r.json();
+                const cfg = Array.isArray(list) && list.length ? list[0] : {};
+                res.statusCode = 200;
+                return res.end(JSON.stringify(cfg));
+              } catch (e: any) {
+                res.statusCode = 200;
+                return res.end(JSON.stringify({}));
+              }
+            }
+            if (req.url?.startsWith('/api/broadcast') && req.method === 'GET') {
+              res.setHeader('Access-Control-Allow-Origin', '*');
+              res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+              res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+              try {
+                const SUPABASE_URL = env.SUPABASE_URL;
+                const SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY;
+                const SUPABASE_SERVICE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
+                const hasSupabase = !!(SUPABASE_URL && (SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY));
+                let message = 'Owner community drive this Saturday · East Legon · 9:00 AM';
+                if (hasSupabase) {
+                  try {
+                    const key = SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY;
+                    const url = `${SUPABASE_URL}/rest/v1/broadcasts?select=message,starts_at&order=starts_at.desc&limit=1`;
+                    const r = await fetch(url, {
+                      headers: { 'Content-Type': 'application/json', 'apikey': key!, 'Authorization': `Bearer ${key}` },
+                    });
+                    if (r.ok) {
+                      const list = await r.json();
+                      if (Array.isArray(list) && list.length && list[0]?.message) {
+                        message = list[0].message;
+                      }
+                    }
+                  } catch {}
+                }
+                res.statusCode = 200;
+                return res.end(JSON.stringify({ message }));
+              } catch (e: any) {
+                res.statusCode = 200;
+                return res.end(JSON.stringify({ message: '' }));
+              }
+            }
             next();
           });
         },

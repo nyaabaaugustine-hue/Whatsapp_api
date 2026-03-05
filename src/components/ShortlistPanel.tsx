@@ -141,14 +141,24 @@ export default function ShortlistPanel({ onClose }: { onClose?: () => void }) {
             <div className="bg-[#0b141a] rounded-xl p-3">
               <div className="text-xs text-gray-400 mb-2">Comparison</div>
               <div className="grid grid-cols-2 gap-2">
-                {[a, b].map((c, idx) => (
-                  <div key={idx} className="bg-[#111b21] rounded-lg p-2">
-                    <div className="text-white text-xs font-semibold">{c.brand} {c.model}</div>
-                    <div className="text-gray-500 text-[11px]">₵{c.price.toLocaleString()} · {c.year}</div>
-                    <div className="text-gray-400 text-[10px]">Pros: reliable · easy maintenance</div>
-                    <div className="text-gray-400 text-[10px]">Cons: —</div>
-                  </div>
-                ))}
+                {(() => {
+                  const cheaper = a.price < b.price ? a : b;
+                  const newer = a.year > b.year ? a : b;
+                  const priceDiff = Math.abs(a.price - b.price);
+                  const yearDiff = Math.abs(a.year - b.year);
+                  return [a, b].map((c, idx) => (
+                    <div key={idx} className="bg-[#111b21] rounded-lg p-2">
+                      <div className="text-white text-xs font-semibold">{c.brand} {c.model}</div>
+                      <div className="text-gray-500 text-[11px]">₵{c.price.toLocaleString()} · {c.year}</div>
+                      <div className="text-gray-400 text-[10px]">
+                        {c.id === cheaper.id ? 'Cheaper' : `+₵${priceDiff.toLocaleString()}`}
+                      </div>
+                      <div className="text-gray-400 text-[10px]">
+                        {c.id === newer.id ? 'Newer' : `-${yearDiff} yr`}
+                      </div>
+                    </div>
+                  ));
+                })()}
               </div>
             </div>
           )}
