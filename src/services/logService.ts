@@ -194,6 +194,10 @@ class LogService {
       timestamp: new Date(),
     };
 
+    // Store locally first
+    this.logs.unshift(newLog);
+
+    // Send to Supabase if configured
     if (this.useSupabase) {
       try {
         await supabase.from('tracking_logs').insert({
@@ -201,15 +205,35 @@ class LogService {
           session_id: this.currentSession?.id,
           intent: log.intent,
           lead_temperature: log.lead_temperature,
+          lead_score: log.lead_score,
           recommended_car_id: log.recommended_car_id,
           message_text: log.messageText
         });
       } catch (error) {
-        console.error('Supabase error:', error);
-        this.logs.unshift(newLog);
+        console.error('Supabase tracking_logs error:', error);
       }
-    } else {
-      this.logs.unshift(newLog);
+    }
+
+    // Also send to backend API for redundancy
+    try {
+      await fetch('/api/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventType: 'tracking_log',
+          sessionId: this.currentSession?.id,
+          timestamp: newLog.timestamp.toISOString(),
+          data: {
+            intent: log.intent,
+            lead_temperature: log.lead_temperature,
+            lead_score: log.lead_score,
+            recommended_car_id: log.recommended_car_id,
+            messageText: log.messageText
+          }
+        })
+      });
+    } catch (error) {
+      console.error('Backend API log error:', error);
     }
 
     await this.updateSessionMetadata(log.lead_temperature, log.intent);

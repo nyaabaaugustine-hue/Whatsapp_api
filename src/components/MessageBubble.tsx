@@ -391,9 +391,12 @@ export function MessageBubble({ message, onConfirmBooking, onScheduleBooking, on
                   />
                 ))}
               </div>
-              <div className="text-[10px] text-white/60 bg-black/40 px-2 py-0.5 rounded-full w-fit border border-white/10">
-                Slide → to view more cars
-              </div>
+              {/* Only show slide hint if there are multiple cars */}
+              {(aiCars.cars.length + aiCars.other.length) > 1 && (
+                <div className="text-[10px] text-white/60 bg-black/40 px-2 py-0.5 rounded-full w-fit border border-white/10">
+                  Slide → to view more cars
+                </div>
+              )}
             </div>
           ) : (
             <>

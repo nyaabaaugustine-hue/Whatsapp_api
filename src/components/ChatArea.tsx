@@ -533,6 +533,13 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     const picks = rankCars(selectCars(budget, type), priority);
     const lower = userText.toLowerCase();
     const locationHit = parseLocation(userText);
+    
+    // Detect farewells
+    const isFarewell = ['bye', 'goodbye', 'thank you', 'thanks', 'see you', 'later', 'gtg', 'gotta go', 'have to go'].some(k => lower.includes(k));
+    
+    // Detect "show more" / "what else" requests
+    const wantsMore = ['what else', 'show more', 'more options', 'other options', 'alternatives', 'something else', 'different', 'another'].some(k => lower.includes(k));
+    
     const askedForPhotos = ['photo', 'photos', 'picture', 'pictures', 'image', 'images', 'show', 'see', 'view'].some(k => lower.includes(k));
     const askedInventory = ['inventory', 'all cars', 'all the cars', 'full list', 'show all', 'list all', 'what do you have'].some(k => lower.includes(k));
     const askedLocation = ['location', 'address', 'where are you', 'showroom', 'office', 'map', 'directions'].some(k => lower.includes(k));
@@ -545,10 +552,52 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     const wantsBestValue = lower.includes('best value') || lower.includes('best-value') || userText === 'best_value';
     const wantsRecommend = lower.includes('recommend') || userText === 'recommend_for_me';
     const wantsNarrow = lower.includes('narrow') || userText === 'narrow_one';
-    const shouldAttachImages = askedForPhotos;
+    const shouldAttachImages = askedForPhotos || wantsMore;
     const imgs = shouldAttachImages ? picks.slice(0, 2).map(c => ((c as any).real_image || c.image_url)) : [];
     let lines: string[] = [];
     let quickReplies: QuickReply[] | undefined;
+    
+    // Handle farewells gracefully
+    if (isFarewell) {
+      lines.push(`Thank you${name ? `, ${name}` : ''}! It was great helping you today.`);
+      lines.push("Feel free to reach out anytime you're ready to move forward.");
+      lines.push("Our sales team is available 24/7 on WhatsApp: +233504512884");
+      lines.push("Drive safe! 🚗");
+      return { text: lines.join('\n'), aiImages: [], quickReplies: undefined };
+    }
+    
+    // Handle "show more" / "what else" requests
+    if (wantsMore) {
+      const morePicks = picks.slice(2, 5); // Get next 3 cars
+      if (morePicks.length > 0) {
+        lines.push("Here are more great options for you:");
+        morePicks.forEach(car => {
+          lines.push(`\n${car.brand} ${car.model} (${car.year}) - GHS ${car.price.toLocaleString()}`);
+        });
+        lines.push("\nWould you like to see photos or book a viewing?");
+        return {
+          text: lines.join('\n'),
+          aiImages: morePicks.slice(0, 2).map(c => ((c as any).real_image || c.image_url)),
+          quickReplies: [
+            { id: 'show_photos', text: 'Show Photos', value: 'show_photos' },
+            { id: 'book_view', text: 'Book Viewing', value: 'reserve_viewing' }
+          ]
+        };
+      } else {
+        lines.push("I've shown you our best matches based on your preferences.");
+        lines.push("Would you like to adjust your budget or car type to see different options?");
+        return {
+          text: lines.join('\n'),
+          aiImages: [],
+          quickReplies: [
+            { id: 'adjust_budget', text: 'Adjust Budget', value: 'change budget' },
+            { id: 'adjust_type', text: 'Different Type', value: 'change type' },
+            { id: 'talk_sales', text: 'Talk to Sales', value: 'talk_sales' }
+          ]
+        };
+      }
+    }
+    
     if (name && addName) lines.push(`Hello ${name}.`);
     if (askedLocation) {
       const locLine = locationHit === 'Outside Accra'
@@ -1263,6 +1312,13 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       const aiImages: string[] = [];
       let bookingProposal: { carId: string; carName: string } | undefined;
       let usedLocalDemo = false;
+
+      // Log AI response for debugging
+      console.log('[ChatArea] AI Response received:', {
+        length: responseText.length,
+        preview: responseText.substring(0, 100),
+        hasImages: aiImages.length > 0
+      });
 
       const processJsonAction = (data: any, originalText: string) => {
         if (data.action === 'send_car_images' || data.action === 'send_car_image' || data.recommended_car_id) {
