@@ -223,7 +223,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     track('lead_capture', { name, phone });
     (async () => {
       try {
-        await fetch('/api/email', {
+        const response = await fetch('/api/email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -232,9 +232,20 @@ export function ChatArea({ onClose }: ChatAreaProps) {
             html: `<h2>New Lead</h2><p><strong>Name:</strong> ${name}</p><p><strong>WhatsApp:</strong> ${phone}</p>`
           })
         });
-        setErrorToast('Lead sent to admin.');
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Email API error:', errorData);
+          setErrorToast(`Email failed: ${errorData.error || 'Unknown error'}`);
+        } else {
+          setErrorToast('Lead sent to admin.');
+        }
         setTimeout(() => setErrorToast(null), 2500);
-      } catch {}
+      } catch (error) {
+        console.error('Email send error:', error);
+        setErrorToast('Failed to send email notification.');
+        setTimeout(() => setErrorToast(null), 2500);
+      }
     })();
     // Personalise first message (or add one if missing)
     let greeted = false;
