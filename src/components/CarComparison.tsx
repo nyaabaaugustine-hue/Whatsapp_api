@@ -22,12 +22,12 @@ export function CarComparison({ carId1, carId2, onBook }: CarComparisonProps) {
   };
 
   const rows = [
-    { label: 'Price', icon: 'ðŸ’°', v1: `GHS ${formatPriceShort(car1.price)}`, v2: `GHS ${formatPriceShort(car2.price)}`, winner: car1.price < car2.price ? 1 : 2, full1: `GHS ${car1.price.toLocaleString()}`, full2: `GHS ${car2.price.toLocaleString()}` },
-    { label: 'Year', icon: 'ðŸ“…', v1: String(car1.year), v2: String(car2.year), winner: car1.year > car2.year ? 1 : 2 },
-    { label: 'Mileage', icon: 'ðŸ“', v1: (car1 as any).mileage || 'N/A', v2: (car2 as any).mileage || 'N/A', winner: 0 },
-    { label: 'Fuel', icon: 'â›½', v1: (car1 as any).fuel || 'Petrol', v2: (car2 as any).fuel || 'Petrol', winner: 0 },
-    { label: 'Transmission', icon: 'âš™ï¸', v1: (car1 as any).transmission || 'Auto', v2: (car2 as any).transmission || 'Auto', winner: 0 },
-    { label: 'Colour', icon: 'ðŸŽ¨', v1: (car1 as any).color || 'N/A', v2: (car2 as any).color || 'N/A', winner: 0 },
+    { label: 'Price', icon: '💰', v1: `GHS ${formatPriceShort(car1.price)}`, v2: `GHS ${formatPriceShort(car2.price)}`, winner: car1.price < car2.price ? 1 : 2, full1: `GHS ${car1.price.toLocaleString()}`, full2: `GHS ${car2.price.toLocaleString()}` },
+    { label: 'Year', icon: '📅', v1: String(car1.year), v2: String(car2.year), winner: car1.year > car2.year ? 1 : 2 },
+    { label: 'Mileage', icon: '📍', v1: (car1 as any).mileage || 'N/A', v2: (car2 as any).mileage || 'N/A', winner: 0 },
+    { label: 'Fuel', icon: '⛽', v1: (car1 as any).fuel || 'Petrol', v2: (car2 as any).fuel || 'Petrol', winner: 0 },
+    { label: 'Transmission', icon: '⚙️', v1: (car1 as any).transmission || 'Auto', v2: (car2 as any).transmission || 'Auto', winner: 0 },
+    { label: 'Colour', icon: '🎨', v1: (car1 as any).color || 'N/A', v2: (car2 as any).color || 'N/A', winner: 0 },
   ];
 
   return (
@@ -66,7 +66,7 @@ export function CarComparison({ carId1, carId2, onBook }: CarComparisonProps) {
             <div key={j} className={`px-2 py-2 text-center border-l border-[#2f3b43] ${cell.win ? 'bg-[#00a884]/10' : ''}`}>
               <span title={cell.full} className={`text-[11px] font-semibold ${cell.win ? 'text-[#00a884]' : 'text-[#e9edef]'}`}>
                 {cell.val}
-                {cell.win && <span className="ml-1 text-[9px]">âœ“</span>}
+                {cell.win && <span className="ml-1 text-[9px]">✓</span>}
               </span>
             </div>
           ))}

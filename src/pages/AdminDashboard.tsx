@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { X, Download, Calendar, Thermometer, Target, Clock, Hash, Database, LogOut, Search, PhoneCall, Tag, Bell, FileText, Send, Plus, User } from 'lucide-react';
 import { AdminLogin } from '../components/AdminLogin';
 import { CAR_DATABASE } from '../data/cars';
@@ -10,6 +10,21 @@ interface Message { session_id: string; role: 'user' | 'assistant'; content: str
 interface Event { id?: string; session_id: string; event_type: string; event_data: any; lead_temperature: string; intent: string; created_at: string; }
 interface Conversation { session_id: string; started_at: string; last_message_at: string; message_count: number; messages: Message[]; }
 interface LeadProfile { name?: string; phone?: string; budget?: number; type?: string; }
+interface CarItem {
+  id?: string;
+  brand: string;
+  model: string;
+  year: number;
+  price: number;
+  color?: string;
+  fuel?: string;
+  transmission?: string;
+  mileage?: string;
+  image_url?: string;
+  real_image?: string;
+  insured?: boolean;
+  registered?: boolean;
+}
 interface Reminder { id: string; session_id: string; when: string; note: string; created_at: string; done?: boolean; notified?: boolean; }
 interface AuditEntry { id: string; at: string; action: string; session_id?: string; detail?: string; }
 interface Template { id: string; text: string; }
@@ -20,6 +35,27 @@ const TEMP_COLORS: Record<string, string> = {
   cold: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
 };
 const EVENT_ICONS: Record<string, string> = { booking: '📅', image_request: '🖼️', chat: '💬', escalation: '📞', tracking_log: '📊', session_start: '🟢' };
+const BRAND_MODELS: Record<string, string[]> = {
+  Toyota: ['Corolla', 'Camry', 'RAV4', 'Highlander', 'Prado', 'Hilux', 'Yaris', 'Vitz'],
+  Honda: ['CR-V', 'Civic', 'Accord', 'Pilot', 'Fit', 'HR-V'],
+  Nissan: ['Altima', 'Sentra', 'X-Trail', 'Patrol', 'Navara', 'Juke'],
+  Hyundai: ['Elantra', 'Tucson', 'Santa Fe', 'Sonata', 'Accent'],
+  Kia: ['Sportage', 'Sorento', 'Rio', 'Cerato', 'Seltos'],
+  Mazda: ['CX-5', 'CX-3', 'Mazda3', 'Mazda6'],
+  Mitsubishi: ['L200', 'Pajero', 'Outlander', 'ASX'],
+  Ford: ['Ranger', 'F-150', 'Everest', 'Edge', 'Escape'],
+  Chevrolet: ['Cruze', 'Trax', 'Equinox', 'Silverado'],
+  'Mercedes-Benz': ['C-Class', 'E-Class', 'GLA', 'GLC', 'GLE'],
+  BMW: ['3 Series', '5 Series', 'X3', 'X5'],
+  Lexus: ['RX 350', 'NX 300', 'ES 350', 'IS 250'],
+  Audi: ['A3', 'A4', 'Q5', 'Q7'],
+  Volkswagen: ['Golf', 'Passat', 'Tiguan'],
+  Peugeot: ['3008', '5008', '208', '308'],
+  Renault: ['Duster', 'Captur', 'Koleos'],
+  Suzuki: ['Vitara', 'Swift', 'Grand Vitara'],
+  Isuzu: ['D-Max', 'MU-X'],
+  'Land Rover': ['Discovery', 'Range Rover Sport', 'Evoque'],
+};
 
 function timeAgo(date: string) {
   const diff = Date.now() - new Date(date).getTime();
@@ -31,7 +67,7 @@ function timeAgo(date: string) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-// ─── Event Detail Modal ───────────────────────────────────────────────
+// â”€â”€â”€ Event Detail Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function EventModal({ event, onClose }: { event: Event; onClose: () => void }) {
   const data = event.event_data;
   const isTracking = event.event_type === 'tracking_log';
@@ -145,7 +181,7 @@ function EventModal({ event, onClose }: { event: Event; onClose: () => void }) {
   );
 }
 
-// ─── Export Helpers ───────────────────────────────────────────────────
+// â”€â”€â”€ Export Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function exportJSON(data: any[], filename: string) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -170,11 +206,26 @@ function exportCSV(data: any[], filename: string) {
   URL.revokeObjectURL(url);
 }
 
-// ─── Main Dashboard ───────────────────────────────────────────────────
+// â”€â”€â”€ Main Dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function AdminDashboard() {
+  const makeCarForm = (): CarItem => ({
+    brand: '',
+    model: '',
+    year: new Date().getFullYear(),
+    price: 0,
+    color: '',
+    fuel: '',
+    transmission: '',
+    mileage: '',
+    image_url: '',
+    real_image: '',
+    insured: true,
+    registered: true,
+  });
+
   const [authed, setAuthed] = useState(false);
   const [password, setPassword] = useState('');
-  const [tab, setTab] = useState<'overview' | 'conversations' | 'events'>('overview');
+  const [tab, setTab] = useState<'overview' | 'conversations' | 'events' | 'inventory'>('overview');
   const [period, setPeriod] = useState<'today' | '7d' | '30d' | '90d'>('7d');
   const [stats, setStats] = useState<Stats | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -201,6 +252,14 @@ export default function AdminDashboard() {
   ]);
   const [reminderNote, setReminderNote] = useState('');
   const [reminderWhen, setReminderWhen] = useState('');
+  const [cars, setCars] = useState<CarItem[]>([]);
+  const [carSearch, setCarSearch] = useState('');
+  const [carSaving, setCarSaving] = useState(false);
+  const [carError, setCarError] = useState<string | null>(null);
+  const [carSuccess, setCarSuccess] = useState<string | null>(null);
+  const [carImageUpload, setCarImageUpload] = useState<string>('');
+  const [carForm, setCarForm] = useState<CarItem>(makeCarForm());
+  const [editingCarId, setEditingCarId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!authed) return;
@@ -221,9 +280,99 @@ export default function AdminDashboard() {
     setLoading(false);
   }, [authed, lastRefresh]);
 
+  const fetchCars = useCallback(async () => {
+    if (!authed) return;
+    try {
+      const res = await fetch('/api/cars');
+      if (!res.ok) return;
+      const data = await res.json();
+      const list = Array.isArray(data?.cars) ? data.cars : [];
+      setCars(list.length ? list : CAR_DATABASE);
+    } catch {
+      setCars(CAR_DATABASE);
+    }
+  }, [authed]);
+
+  const resetCarForm = () => {
+    setCarForm(makeCarForm());
+    setEditingCarId(null);
+  };
+  const resetCarImage = () => setCarImageUpload('');
+
+  const startEditCar = (car: CarItem) => {
+    setEditingCarId(car.id ? String(car.id) : null);
+    setCarForm({
+      id: car.id ? String(car.id) : undefined,
+      brand: car.brand || '',
+      model: car.model || '',
+      year: Number(car.year || new Date().getFullYear()),
+      price: Number(car.price || 0),
+      color: car.color || '',
+      fuel: car.fuel || '',
+      transmission: car.transmission || '',
+      mileage: car.mileage || '',
+      image_url: car.image_url || '',
+      real_image: car.real_image || '',
+      insured: !!car.insured,
+      registered: !!car.registered,
+    });
+    setCarImageUpload(car.real_image || car.image_url || '');
+    document.getElementById('admin-car-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleCarSubmit = async (e?: { preventDefault: () => void }) => {
+    if (e) e.preventDefault();
+    if (!carForm.brand.trim() || !carForm.model.trim() || !carForm.year || !carForm.price) {
+      setCarError('Please fill brand, model, year, and price.');
+      return;
+    }
+    setCarSaving(true);
+    setCarError(null);
+    setCarSuccess(null);
+    try {
+      const isEditing = !!editingCarId;
+      const payload = isEditing ? { ...carForm, id: editingCarId } : carForm;
+      const res = await fetch('/api/cars', {
+        method: isEditing ? 'PATCH' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': ADMIN_KEY,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setCarError(data?.error || 'Failed to save car.');
+      } else {
+        if (data?.car) {
+          if (isEditing) {
+            setCars(prev => prev.map(c => (String(c.id) === String(data.car.id) ? data.car : c)));
+          } else {
+            setCars(prev => [data.car, ...prev]);
+          }
+        } else {
+          fetchCars();
+        }
+        setCarSuccess(isEditing ? 'Car updated successfully.' : 'Car saved successfully.');
+        setTimeout(() => setCarSuccess(null), 3000);
+        fetchCars();
+        resetCarForm();
+        resetCarImage();
+      }
+    } catch (err: any) {
+      setCarError(err?.message || 'Failed to save car.');
+    }
+    setCarSaving(false);
+  };
+
   useEffect(() => {
-    if (authed) { fetchData(); const i = setInterval(fetchData, 30000); return () => clearInterval(i); }
-  }, [authed, fetchData]);
+    if (authed) {
+      fetchData();
+      fetchCars();
+      const i = setInterval(fetchData, 30000);
+      return () => clearInterval(i);
+    }
+  }, [authed, fetchData, fetchCars]);
 
   useEffect(() => {
     try {
@@ -340,6 +489,20 @@ export default function AdminDashboard() {
     });
     return counts;
   })();
+
+  const filteredCars = cars.filter(c => {
+    const q = carSearch.trim().toLowerCase();
+    if (!q) return true;
+    return [
+      c.brand,
+      c.model,
+      c.fuel,
+      c.transmission,
+      c.color,
+      String(c.year ?? ''),
+      String(c.price ?? ''),
+    ].some(v => String(v || '').toLowerCase().includes(q));
+  });
 
   const handleExport = (format: 'json' | 'csv', type: 'events' | 'bookings' | 'conversations') => {
     if (type === 'events') {
@@ -589,17 +752,17 @@ export default function AdminDashboard() {
 
       {/* Tabs */}
       <div className="flex border-b border-[#2f3b43] bg-[#1f2c34]">
-        {(['overview', 'conversations', 'events'] as const).map(t => (
+        {(['overview', 'conversations', 'events', 'inventory'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-6 py-3 text-sm font-medium capitalize transition ${tab === t ? 'text-[#25D366] border-b-2 border-[#25D366]' : 'text-gray-400 hover:text-white'}`}>
-            {t === 'overview' ? '📊 Overview' : t === 'conversations' ? '💬 Conversations' : '⚡ Events'}
+            {t === 'overview' ? '📊 Overview' : t === 'conversations' ? '💬 Conversations' : t === 'events' ? '⚡ Events' : '🚘 Inventory'}
           </button>
         ))}
       </div>
 
       <div className="p-6 max-w-7xl mx-auto">
 
-        {/* ── OVERVIEW ── */}
+        {/* â”€â”€ OVERVIEW â”€â”€ */}
         {tab === 'overview' && (
           <div>
             {/* Filters */}
@@ -613,7 +776,7 @@ export default function AdminDashboard() {
                   className="bg-transparent text-sm text-white outline-none w-full"
                 />
               </div>
-              <select value={leadFilter} onChange={e => setLeadFilter(e.target.value as any)} className="bg-[#1f2c34] border border-[#2f3b43] rounded-lg px-3 py-2 text-sm text-white">
+              <select value={leadFilter} onChange={e => setLeadFilter(e.target.value as any)} className="bg-[#0f3d2e] border border-[#2f5b48] rounded-lg px-3 py-2 text-sm text-[#e6e9ee] focus:outline-none focus:ring-2 focus:ring-[#25D366]/40 focus:border-[#25D366]/60">
                 <option value="all">All leads</option>
                 <option value="hot">Hot leads</option>
                 <option value="warm">Warm leads</option>
@@ -643,7 +806,7 @@ export default function AdminDashboard() {
                 <div key={i} className="bg-[#111b21]/80 backdrop-blur rounded-xl p-4 border border-[#2f3b43] shadow-lg hover:shadow-xl transition">
                   <div className="flex items-baseline justify-between">
                     <div className={`text-2xl font-bold ${card.color}`}>{card.value}</div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${card.trend>=0?'bg-[#00a884]/20 text-[#00a884]':'bg-red-500/20 text-red-400'}`}>{card.trend>=0?'↑':'↓'} {Math.abs(card.trend)}%</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${card.trend>=0?'bg-[#00a884]/20 text-[#00a884]':'bg-red-500/20 text-red-400'}`}>{card.trend>=0?'â†‘':'â†“'} {Math.abs(card.trend)}%</span>
                   </div>
                   <div className="text-gray-400 text-xs mt-1">{card.label}</div>
                   <div className="mt-3 h-10">
@@ -807,7 +970,7 @@ export default function AdminDashboard() {
                         className="flex-1 flex items-center justify-center gap-1.5 bg-[#25D366]/20 hover:bg-[#25D366]/30 text-[#25D366] text-xs py-2 rounded-lg transition font-medium border border-[#25D366]/30">
                         <Download className="w-3 h-3" /> CSV
                       </button>
-                      <select className="text-xs px-2 py-2 rounded-lg bg-[#2a3942] text-white">
+                      <select className="text-xs px-2 py-2 rounded-lg bg-[#0f3d2e] text-[#e6e9ee] border border-[#2f5b48] focus:outline-none focus:ring-2 focus:ring-[#25D366]/40 focus:border-[#25D366]/60">
                         <option>CSV</option>
                         <option>JSON</option>
                         <option>Excel</option>
@@ -841,7 +1004,7 @@ export default function AdminDashboard() {
                           <span className={`text-xs px-2 py-0.5 rounded-full hidden sm:block ${TEMP_COLORS[evt.lead_temperature] || ''}`}>{evt.lead_temperature}</span>
                         )}
                         <span className="text-gray-500 text-xs">{timeAgo(evt.created_at)}</span>
-                        <span className="text-gray-600 group-hover:text-gray-400 text-xs">›</span>
+                        <span className="text-gray-600 group-hover:text-gray-400 text-xs">â€º</span>
                       </div>
                     </button>
                   ))}
@@ -873,7 +1036,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* ── CONVERSATIONS ── */}
+        {/* â”€â”€ CONVERSATIONS â”€â”€ */}
         {tab === 'conversations' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4" style={{ height: 'calc(100vh - 200px)' }}>
             <div className="bg-[#1f2c34] border border-[#2f3b43] rounded-xl overflow-y-auto">
@@ -889,7 +1052,7 @@ export default function AdminDashboard() {
                       className="bg-transparent text-xs text-white outline-none w-full"
                     />
                   </div>
-                  <select value={leadFilter} onChange={e => setLeadFilter(e.target.value as any)} className="bg-[#111b21] border border-[#2f3b43] rounded-lg px-2 py-1.5 text-xs text-white">
+                  <select value={leadFilter} onChange={e => setLeadFilter(e.target.value as any)} className="bg-[#0f3d2e] border border-[#2f5b48] rounded-lg px-2 py-1.5 text-xs text-[#e6e9ee] focus:outline-none focus:ring-2 focus:ring-[#25D366]/40 focus:border-[#25D366]/60">
                     <option value="all">All</option>
                     <option value="hot">Hot</option>
                     <option value="warm">Warm</option>
@@ -1163,7 +1326,375 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* ── EVENTS ── */}
+        {/* — Inventory — */}
+        {tab === 'inventory' && (
+          <div className="h-[calc(100vh-160px)]">
+            <div className="grid grid-cols-2 gap-4 items-stretch h-full">
+              <div className="bg-[#1f2c34] border border-[#2f3b43] rounded-xl p-4 h-full flex flex-col">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="font-semibold text-gray-300">{editingCarId ? 'Edit Car' : 'Add Car'}</h2>
+                <div className="flex items-center gap-2">
+                  {editingCarId && (
+                    <button
+                      onClick={resetCarForm}
+                      className="text-xs px-2 py-1 rounded-md bg-[#2a3942] text-gray-200 hover:bg-[#3d4f5c] transition"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  <button
+                    onClick={resetCarForm}
+                    className="text-xs px-2 py-1 rounded-md bg-[#2a3942] text-gray-200 hover:bg-[#3d4f5c] transition"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+              <div id="admin-car-form" className="flex-1 min-h-0 overflow-y-auto pr-1">
+                <form onSubmit={handleCarSubmit} className="space-y-3">
+                  {carError && (
+                    <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-md px-3 py-2">
+                      {carError}
+                    </div>
+                  )}
+                  {carSuccess && (
+                    <div className="text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-md px-3 py-2">
+                      {carSuccess}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <div className="space-y-3">
+                      <div className="bg-[#111b21] border border-[#2f3b43] rounded-lg p-2.5">
+                        <div className="text-[11px] text-gray-400 uppercase mb-2">Basic Info</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[11px] text-gray-400">Brand</label>
+                            <div className="relative mt-1">
+                              <select
+                                value={carForm.brand}
+                                onChange={e => {
+                                  const nextBrand = e.target.value;
+                                  setCarForm(prev => {
+                                    const models = BRAND_MODELS[nextBrand] || [];
+                                    const keepModel = prev.model && models.includes(prev.model);
+                                    return { ...prev, brand: nextBrand, model: keepModel ? prev.model : '' };
+                                  });
+                                }}
+                                className="w-full appearance-none bg-[#0f3d2e] border border-[#2f5b48] rounded-md text-xs text-[#e6e9ee] px-2 py-1.5 pr-8 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40 focus:border-[#25D366]/60"
+                              >
+                                <option value="">Select brand</option>
+                                {['Toyota', 'Honda', 'Nissan', 'Hyundai', 'Kia', 'Mazda', 'Mitsubishi', 'Ford', 'Chevrolet', 'Mercedes-Benz', 'BMW', 'Lexus', 'Audi', 'Volkswagen', 'Peugeot', 'Renault', 'Suzuki', 'Isuzu', 'Land Rover'].map(b => (
+                                  <option key={b} value={b}>{b}</option>
+                                ))}
+                              </select>
+                              <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[#8696a0]">
+                                <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                  <path d="M5.5 7.5 10 12l4.5-4.5" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              </div>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-[11px] text-gray-400">Model</label>
+                            <div className="relative mt-1">
+                              <select
+                                value={carForm.model}
+                                onChange={e => setCarForm(prev => ({ ...prev, model: e.target.value }))}
+                                className="w-full appearance-none bg-[#0f3d2e] border border-[#2f5b48] rounded-md text-xs text-[#e6e9ee] px-2 py-1.5 pr-8 focus:outline-none focus:ring-2 focus:ring-[#25D366]/40 focus:border-[#25D366]/60 disabled:opacity-60 disabled:cursor-not-allowed"
+                                disabled={!carForm.brand}
+                              >
+                                <option value="">{carForm.brand ? 'Select model' : 'Select brand first'}</option>
+                                {(BRAND_MODELS[carForm.brand] || []).map(m => (
+                                  <option key={m} value={m}>{m}</option>
+                                ))}
+                              </select>
+                              <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[#8696a0]">
+                                <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                  <path d="M5.5 7.5 10 12l4.5-4.5" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              </div>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-[11px] text-gray-400">Year</label>
+                            <input
+                              type="number"
+                              list="car-year-list"
+                              value={carForm.year}
+                              onChange={e => setCarForm(prev => ({ ...prev, year: Number(e.target.value) }))}
+                              placeholder="2022"
+                              className="mt-1 w-full bg-[#0b141a] border border-[#2f3b43] rounded-md text-xs text-white px-2 py-1.5"
+                            />
+                            <datalist id="car-year-list">
+                              {Array.from({ length: 21 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                                <option key={y} value={y} />
+                              ))}
+                            </datalist>
+                          </div>
+                          <div>
+                            <label className="text-[11px] text-gray-400">Price (GHS)</label>
+                            <input
+                              type="number"
+                              list="car-price-list"
+                              value={carForm.price}
+                              onChange={e => setCarForm(prev => ({ ...prev, price: Number(e.target.value) }))}
+                              placeholder="120000"
+                              className="mt-1 w-full bg-[#0b141a] border border-[#2f3b43] rounded-md text-xs text-white px-2 py-1.5"
+                            />
+                            <datalist id="car-price-list">
+                              {[60000, 80000, 100000, 120000, 150000, 180000, 200000, 250000, 300000, 350000, 400000].map(p => (
+                                <option key={p} value={p} />
+                              ))}
+                            </datalist>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-[#111b21] border border-[#2f3b43] rounded-lg p-2.5">
+                        <div className="text-[11px] text-gray-400 uppercase mb-2">Specs</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[11px] text-gray-400">Fuel</label>
+                            <input
+                              list="car-fuel-list"
+                              value={carForm.fuel || ''}
+                              onChange={e => setCarForm(prev => ({ ...prev, fuel: e.target.value }))}
+                              placeholder="Petrol"
+                              className="mt-1 w-full bg-[#0b141a] border border-[#2f3b43] rounded-md text-xs text-white px-2 py-1.5"
+                            />
+                            <datalist id="car-fuel-list">
+                              {['Petrol', 'Diesel', 'Hybrid', 'Electric'].map(f => (
+                                <option key={f} value={f} />
+                              ))}
+                            </datalist>
+                          </div>
+                          <div>
+                            <label className="text-[11px] text-gray-400">Transmission</label>
+                            <input
+                              list="car-transmission-list"
+                              value={carForm.transmission || ''}
+                              onChange={e => setCarForm(prev => ({ ...prev, transmission: e.target.value }))}
+                              placeholder="Automatic"
+                              className="mt-1 w-full bg-[#0b141a] border border-[#2f3b43] rounded-md text-xs text-white px-2 py-1.5"
+                            />
+                            <datalist id="car-transmission-list">
+                              {['Automatic', 'Manual', 'CVT'].map(t => (
+                                <option key={t} value={t} />
+                              ))}
+                            </datalist>
+                          </div>
+                          <div>
+                            <label className="text-[11px] text-gray-400">Color</label>
+                            <input
+                              list="car-color-list"
+                              value={carForm.color || ''}
+                              onChange={e => setCarForm(prev => ({ ...prev, color: e.target.value }))}
+                              placeholder="Black"
+                              className="mt-1 w-full bg-[#0b141a] border border-[#2f3b43] rounded-md text-xs text-white px-2 py-1.5"
+                            />
+                            <datalist id="car-color-list">
+                              {['Black', 'White', 'Silver', 'Gray', 'Blue', 'Red', 'Green', 'Gold', 'Brown', 'Beige'].map(c => (
+                                <option key={c} value={c} />
+                              ))}
+                            </datalist>
+                          </div>
+                          <div>
+                            <label className="text-[11px] text-gray-400">Mileage</label>
+                            <input
+                              list="car-mileage-list"
+                              value={carForm.mileage || ''}
+                              onChange={e => setCarForm(prev => ({ ...prev, mileage: e.target.value }))}
+                              placeholder="55,000 km"
+                              className="mt-1 w-full bg-[#0b141a] border border-[#2f3b43] rounded-md text-xs text-white px-2 py-1.5"
+                            />
+                            <datalist id="car-mileage-list">
+                              {['20,000 km', '40,000 km', '55,000 km', '70,000 km', '90,000 km', '120,000 km'].map(m => (
+                                <option key={m} value={m} />
+                              ))}
+                            </datalist>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="bg-[#111b21] border border-[#2f3b43] rounded-lg p-2.5">
+                        <div className="text-[11px] text-gray-400 uppercase mb-2">Images</div>
+                        <div className="space-y-2">
+                          <div>
+                            <label className="text-[11px] text-gray-400">Image URL (card)</label>
+                            <input
+                              value={carForm.image_url || ''}
+                              onChange={e => setCarForm(prev => ({ ...prev, image_url: e.target.value }))}
+                              placeholder="https://..."
+                              className="mt-1 w-full bg-[#0b141a] border border-[#2f3b43] rounded-md text-xs text-white px-2 py-1.5"
+                            />
+                          </div>
+                          <div className="bg-[#0b141a] border border-dashed border-[#2f3b43] rounded-md p-2.5">
+                            <div className="text-[11px] text-gray-400 mb-2">Upload image (used for card + gallery)</div>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="text-xs text-gray-300"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const reader = new FileReader();
+                                reader.onload = () => {
+                                  const url = String(reader.result || '');
+                                  setCarImageUpload(url);
+                                  setCarForm(prev => ({ ...prev, image_url: url, real_image: url }));
+                                };
+                                reader.readAsDataURL(file);
+                              }}
+                            />
+                            {carImageUpload && (
+                              <div className="mt-3 flex items-center gap-3">
+                                <img src={carImageUpload} alt="Upload preview" className="w-20 h-16 object-cover rounded-md border border-[#2f3b43]" />
+                                <button
+                                  type="button"
+                                  onClick={resetCarImage}
+                                  className="text-xs px-2 py-1 rounded-md bg-[#2a3942] text-gray-200 hover:bg-[#3d4f5c] transition"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <label className="text-[11px] text-gray-400">Image URL (gallery)</label>
+                            <input
+                              value={carForm.real_image || ''}
+                              onChange={e => setCarForm(prev => ({ ...prev, real_image: e.target.value }))}
+                              placeholder="https://..."
+                              className="mt-1 w-full bg-[#0b141a] border border-[#2f3b43] rounded-md text-xs text-white px-2 py-1.5"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-[#111b21] border border-[#2f3b43] rounded-lg p-2.5">
+                        <div className="text-[11px] text-gray-400 uppercase mb-2">Status</div>
+                        <div className="flex items-center gap-4 text-xs text-gray-300">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={!!carForm.insured}
+                              onChange={e => setCarForm(prev => ({ ...prev, insured: e.target.checked }))}
+                            />
+                            Insurance
+                          </label>
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={!!carForm.registered}
+                              onChange={e => setCarForm(prev => ({ ...prev, registered: e.target.checked }))}
+                            />
+                            Registration
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={carSaving}
+                    className="w-full text-xs px-3 py-2 rounded-lg bg-[#25D366]/20 text-[#25D366] hover:bg-[#25D366]/30 transition border border-[#25D366]/30 disabled:opacity-60"
+                  >
+                    {carSaving ? 'Saving...' : (editingCarId ? 'Update Car' : 'Save Car')}
+                  </button>
+                </form>
+              </div>
+            </div>
+
+              <div className="bg-[#1f2c34] border border-[#2f3b43] rounded-xl p-4 h-full flex flex-col">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 mb-3">
+                <div>
+                  <h2 className="font-semibold text-gray-300">Inventory ({filteredCars.length})</h2>
+                  <p className="text-xs text-gray-500">Search by brand, model, year, fuel, or transmission.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={carSearch}
+                    onChange={e => setCarSearch(e.target.value)}
+                    placeholder="Search cars"
+                    className="bg-[#0b141a] border border-[#2f3b43] rounded-md text-xs text-white px-3 py-2 w-64"
+                  />
+                  <button
+                    onClick={fetchCars}
+                    className="text-xs px-3 py-2 rounded-lg bg-[#2a3942] text-gray-200 hover:bg-[#3d4f5c] transition"
+                  >
+                    Refresh
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                {filteredCars.length === 0 ? (
+                  <p className="text-gray-500 text-sm">No cars found.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                    {filteredCars.map((c, i) => (
+                      <div key={`${c.id ?? i}`} className="bg-[#111b21] border border-[#2f3b43] rounded-xl p-2.5 flex gap-3">
+                        <div className="w-20 h-16 rounded-lg bg-[#0b141a] border border-[#2f3b43] overflow-hidden shrink-0">
+                        {c.image_url ? (
+                          <img src={c.image_url} alt={`${c.brand} ${c.model}`} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">No image</div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm text-white font-semibold truncate">{c.year} {c.brand} {c.model}</p>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-[#25D366] font-semibold">₵{Number(c.price || 0).toLocaleString()}</span>
+                            <button
+                              onClick={() => startEditCar(c)}
+                              className="text-[11px] px-2 py-1 rounded-md bg-[#2a3942] text-gray-200 hover:bg-[#3d4f5c] transition"
+                            >
+                              Edit
+                            </button>
+                          </div>
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                          <div className="text-gray-500">Brand</div>
+                          <div className="text-gray-200">{c.brand || '—'}</div>
+                          <div className="text-gray-500">Model</div>
+                          <div className="text-gray-200">{c.model || '—'}</div>
+                          <div className="text-gray-500">Year</div>
+                          <div className="text-gray-200">{c.year || '—'}</div>
+                          <div className="text-gray-500">Price</div>
+                          <div className="text-gray-200">₵{Number(c.price || 0).toLocaleString()}</div>
+                          <div className="text-gray-500">Fuel</div>
+                          <div className="text-gray-200">{c.fuel || '—'}</div>
+                          <div className="text-gray-500">Transmission</div>
+                          <div className="text-gray-200">{c.transmission || '—'}</div>
+                          <div className="text-gray-500">Mileage</div>
+                          <div className="text-gray-200">{c.mileage || '—'}</div>
+                          <div className="text-gray-500">Color</div>
+                          <div className="text-gray-200">{c.color || '—'}</div>
+                          <div className="text-gray-500">Insurance</div>
+                          <div className="text-gray-200">{c.insured ? 'Yes' : 'No'}</div>
+                          <div className="text-gray-500">Registration</div>
+                          <div className="text-gray-200">{c.registered ? 'Yes' : 'No'}</div>
+                          <div className="text-gray-500">Card Image</div>
+                          <div className="text-gray-200">{c.image_url ? 'Set' : '—'}</div>
+                          <div className="text-gray-500">Gallery Image</div>
+                          <div className="text-gray-200">{c.real_image ? 'Set' : '—'}</div>
+                        </div>
+                      </div>
+                    </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            </div>
+          </div>
+        )}
+
+        {/* â”€â”€ EVENTS â”€â”€ */}
         {tab === 'events' && (
           <div className="bg-[#1f2c34] border border-[#2f3b43] rounded-xl overflow-hidden">
             <div className="p-4 border-b border-[#2f3b43] flex items-center justify-between">
@@ -1225,3 +1756,4 @@ export default function AdminDashboard() {
     </div>
   );
 }
+

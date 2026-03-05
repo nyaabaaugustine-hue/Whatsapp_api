@@ -27,8 +27,8 @@ export function DepositCard({ carName, depositAmount, bookingId }: DepositCardPr
   };
 
   const accounts = [
-    { name: 'MTN Mobile Money', number: '0541988383', icon: 'ðŸŸ¡', label: 'MTN MoMo' },
-    { name: 'Vodafone Cash', number: '0201988383', icon: 'ðŸ”´', label: 'Voda Cash' },
+    { name: 'MTN Mobile Money', number: '0541988383', icon: '🟡', label: 'MTN MoMo' },
+    { name: 'Vodafone Cash', number: '0201988383', icon: '🔴', label: 'Voda Cash' },
   ];
 
   return (
@@ -47,7 +47,7 @@ export function DepositCard({ carName, depositAmount, bookingId }: DepositCardPr
         <div>
           <p className="text-[#8696a0] text-[10px] uppercase font-semibold">Deposit Amount</p>
           <p title={`GHS ${depositAmount.toLocaleString()}`} className="text-[#e9edef] text-[22px] font-black leading-tight">GHS {formatPriceShort(depositAmount)}</p>
-          <p className="text-[#8696a0] text-[10px]">Refundable Â· Secures car for 48hrs</p>
+          <p className="text-[#8696a0] text-[10px]">Refundable · Secures car for 48hrs</p>
         </div>
         {bookingId && (
           <div className="text-right">

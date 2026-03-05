@@ -1,4 +1,5 @@
 import { BadgeCheck, ArrowLeft } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { CAR_DATABASE } from '../data/cars';
 
 interface InventoryPageProps {
@@ -6,6 +7,8 @@ interface InventoryPageProps {
 }
 
 export default function InventoryPage({ onBack }: InventoryPageProps) {
+  const [cars, setCars] = useState(CAR_DATABASE);
+
   const formatPriceShort = (n: number) => {
     if (n >= 1_000_000) {
       const v = (n / 1_000_000).toFixed(1).replace(/\.0$/, '');
@@ -14,6 +17,20 @@ export default function InventoryPage({ onBack }: InventoryPageProps) {
     if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
     return `${n}`;
   };
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/cars');
+        if (!res.ok) return;
+        const data = await res.json();
+        const list = Array.isArray(data?.cars) ? data.cars : [];
+        if (active && list.length > 0) setCars(list);
+      } catch {}
+    })();
+    return () => { active = false; };
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#0f172a] font-sans">
@@ -34,7 +51,7 @@ export default function InventoryPage({ onBack }: InventoryPageProps) {
 
       <section className="max-w-6xl mx-auto px-5 py-8">
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {CAR_DATABASE.map(car => {
+          {cars.map(car => {
             const img = (car as any).real_image || car.image_url;
             return (
               <div key={car.id} className="group rounded-2xl overflow-hidden bg-[#101a21] border border-[#1e293b] shadow-sm hover:shadow-xl transition-all">

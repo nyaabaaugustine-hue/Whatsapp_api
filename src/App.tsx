@@ -25,8 +25,9 @@ const formatPriceShort = (n: number) => {
 export default function App() {
   const [isOpen, setIsOpen] = useState(false);
   const [view, setView] = useState<'home' | 'admin' | 'inventory'>('home');
-  const featured = CAR_DATABASE.slice(0, 3);
-  const listing = CAR_DATABASE.length > 6 ? CAR_DATABASE.slice(3, 9) : CAR_DATABASE.slice(0, 6);
+  const [cars, setCars] = useState(CAR_DATABASE);
+  const featured = cars.slice(0, 3);
+  const listing = cars.length > 6 ? cars.slice(3, 9) : cars.slice(0, 6);
   const [bookingModal, setBookingModal] = useState<{ carId: string; carName: string } | null>(null);
 
   // Lock body scroll when chat open (mobile full screen)
@@ -54,6 +55,20 @@ export default function App() {
     window.addEventListener('hashchange', handleHashChange);
     handleHashChange();
     return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/cars');
+        if (!res.ok) return;
+        const data = await res.json();
+        const list = Array.isArray(data?.cars) ? data.cars : [];
+        if (active && list.length > 0) setCars(list);
+      } catch {}
+    })();
+    return () => { active = false; };
   }, []);
 
   if (view === 'admin') {
@@ -126,7 +141,7 @@ export default function App() {
       </section>
 
       {/* Inventory Carousel */}
-      {CAR_DATABASE.length > 6 && (
+      {cars.length > 6 && (
         <section id="inventory" className="max-w-6xl mx-auto px-5 py-6">
           <div className="text-white font-black text-2xl mb-3">Featured Inventory</div>
           <div className="overflow-x-hidden">

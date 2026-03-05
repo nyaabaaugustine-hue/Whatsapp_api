@@ -1,0 +1,33 @@
+﻿import { Message, Attachment } from "../types";
+import { CAR_DATABASE } from "../data/cars";
+
+const apiKey = import.meta.env.VITE_APIFREELLM_API_KEY || 'apf_ivcabm4cxcdvaxh8ju1gxxji';
+const API_URL = 'https://api.apifreellm.com/v1/chat/completions';
+
+const inventoryList = CAR_DATABASE.map(car => `${car.id}. ${car.year} ${car.brand} ${car.model} - ₵${car.price.toLocaleString()} (${car.mileage.toLocaleString()}km)`).join('\n');
+
+const SYSTEM_INSTRUCTION = `You are Abena, car sales consultant for Drivemond Ghana.
+
+CARS: ${inventoryList}
+
+FLOW:
+1. First: Ask budget in Ghana Cedis (₵) and car type preference
+2. After budget: Recommend 2-3 matching cars with prices
+3. Photos: {"action": "send_car_images", "car_id": "1"}
+4. Booking: {"action": "create_booking", "name": "...", "date": "...", "time": "..."}
+
+RULES: Respond to customer's LATEST message. Keep SHORT (2-3 sentences). Don't repeat. Be helpful.`;
+
+export async function sendChatMessage(messages: Message[], newMessage: string, attachment?: Attachment): Promise<string> {
+  try {
+    const history = messages.map(msg => ({role: msg.sender === 'user' ? 'user' as const : 'assistant' as const, content: msg.text}));
+    const apiMessages = [{role: 'system' as const, content: SYSTEM_INSTRUCTION}, ...history, {role: 'user' as const, content: newMessage}];
+    const response = await fetch(API_URL, {method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`}, body: JSON.stringify({model: 'gpt-3.5-turbo', messages: apiMessages, temperature: 0.7, max_tokens: 600, presence_penalty: 0.6, frequency_penalty: 0.3})});
+    if (!response.ok) throw new Error(`API failed: ${response.status}`);
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content?.trim() || 'No response';
+  } catch (error: any) {
+    console.error('Error:', error);
+    return "Sorry, trouble connecting. Call +233504512884";
+  }
+}

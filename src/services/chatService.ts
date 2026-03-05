@@ -1,7 +1,7 @@
 ﻿import { Message, Attachment } from "../types";
 import { CAR_DATABASE } from "../data/cars";
 
-const inventoryString = CAR_DATABASE.map(c => `ID: ${c.id} | ${c.year} ${c.brand} ${c.model} | â‚µ${c.price.toLocaleString()}`).join('\n');
+const inventoryString = CAR_DATABASE.map(c => `ID: ${c.id} | ${c.year} ${c.brand} ${c.model} | ₵${c.price.toLocaleString()}`).join('\n');
 
 async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = 15000): Promise<Response> {
   const controller = new AbortController();
@@ -216,7 +216,7 @@ Abena (reply like a real human typing on WhatsApp, keep it short and natural):`;
     const clientKey = (() => {
       try { return localStorage.getItem('OPENROUTER_API_KEY') || ''; } catch { return ''; }
     })();
-    // Attempt chain: FreeLLM â†’ OpenRouter (client) â†’ Backend â†’ Local demo
+    // Attempt chain: FreeLLM → OpenRouter (client) → Backend → Local demo
     if (freeLlmKey) {
       try {
         const response = await fetchWithTimeout('https://apifreellm.com/api/v1/chat', {

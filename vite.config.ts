@@ -131,6 +131,124 @@ export default defineConfig(({ mode }) => {
               res.statusCode = 400;
               return res.end(JSON.stringify({ error: 'Bad request' }));
             }
+            if (req.url?.startsWith('/api/cars')) {
+              res.setHeader('Access-Control-Allow-Origin', '*');
+              res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
+              res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-key');
+              const SUPABASE_URL = env.SUPABASE_URL;
+              const SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY;
+              const SUPABASE_SERVICE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
+              const hasSupabase = !!(SUPABASE_URL && (SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY));
+
+              if (req.method === 'GET') {
+                if (!hasSupabase) {
+                  res.statusCode = 200;
+                  return res.end(JSON.stringify({ cars: [] }));
+                }
+                try {
+                  const select = [
+                    'id',
+                    'brand',
+                    'model',
+                    'year',
+                    'price',
+                    'color',
+                    'fuel',
+                    'transmission',
+                    'mileage',
+                    'image_url',
+                    'real_image',
+                    'insured',
+                    'registered'
+                  ].join(',');
+                  const url = `${SUPABASE_URL}/rest/v1/cars?select=${encodeURIComponent(select)}&order=year.desc,price.desc&limit=200`;
+                  const key = SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY;
+                  const r = await fetch(url, {
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'apikey': key!,
+                      'Authorization': `Bearer ${key}`,
+                    },
+                  });
+                  const cars = r.ok ? await r.json() : [];
+                  res.statusCode = 200;
+                  return res.end(JSON.stringify({ cars }));
+                } catch (e: any) {
+                  res.statusCode = 502;
+                  return res.end(JSON.stringify({ error: e?.message ?? 'Supabase fetch failed' }));
+                }
+              }
+
+              if (req.method === 'POST' || req.method === 'PATCH') {
+                const key = (req.headers['x-admin-key'] || '') as string;
+                if ((ADMIN_SECRET || '') && key !== (ADMIN_SECRET || '')) {
+                  res.statusCode = 401;
+                  return res.end(JSON.stringify({ error: 'Unauthorized' }));
+                }
+
+                const chunks: Buffer[] = [];
+                await new Promise<void>((resolve, reject) => {
+                  req.on('data', (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+                  req.on('end', () => resolve());
+                  req.on('error', (e) => reject(e));
+                });
+                const bodyText = Buffer.concat(chunks).toString('utf-8') || '{}';
+                const body = JSON.parse(bodyText);
+
+                if (!hasSupabase) {
+                  res.statusCode = 500;
+                  return res.end(JSON.stringify({ error: 'Supabase not configured' }));
+                }
+
+                const payload = {
+                  brand: body.brand,
+                  model: body.model,
+                  year: Number(body.year),
+                  price: Number(body.price),
+                  color: body.color,
+                  fuel: body.fuel,
+                  transmission: body.transmission,
+                  mileage: body.mileage,
+                  image_url: body.image_url,
+                  real_image: body.real_image || body.image_url,
+                  insured: !!body.insured,
+                  registered: !!body.registered,
+                };
+
+                const isUpdate = req.method === 'PATCH';
+                if (isUpdate && !body?.id) {
+                  res.statusCode = 400;
+                  return res.end(JSON.stringify({ error: 'Missing car id for update' }));
+                }
+                const sbKey = SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY;
+                const url = isUpdate
+                  ? `${SUPABASE_URL}/rest/v1/cars?id=eq.${encodeURIComponent(String(body.id))}`
+                  : `${SUPABASE_URL}/rest/v1/cars`;
+                try {
+                  const r = await fetch(url, {
+                    method: isUpdate ? 'PATCH' : 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'apikey': sbKey!,
+                      'Authorization': `Bearer ${sbKey}`,
+                      'Prefer': 'return=representation',
+                    },
+                    body: JSON.stringify(payload),
+                  });
+                  if (!r.ok) {
+                    const t = await r.text();
+                    res.statusCode = r.status;
+                    return res.end(JSON.stringify({ error: t.substring(0, 300) }));
+                  }
+                  const data = await r.json();
+                  res.statusCode = 200;
+                  return res.end(JSON.stringify({ success: true, car: data?.[0] || null }));
+                } catch (e: any) {
+                  res.statusCode = 502;
+                  return res.end(JSON.stringify({ error: e?.message ?? 'Supabase fetch failed' }));
+                }
+              }
+            }
             if (req.url === '/api/email' && req.method === 'POST') {
               res.setHeader('Access-Control-Allow-Origin', '*');
               res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
