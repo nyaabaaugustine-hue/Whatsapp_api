@@ -19,9 +19,11 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const [serverEvents, setServerEvents] = useState<any[]>([]);
 
   const refresh = useCallback(async () => {
-    setLogs([...logService.getLogs()]);
-    setBookings([...logService.getBookings()]);
+    const logsData = await logService.getLogs();
+    const bookingsData = await logService.getBookings();
     const sessions = await logService.getChatSessions();
+    setLogs([...logsData]);
+    setBookings([...bookingsData]);
     setChatSessions([...sessions]);
     setLastRefresh(new Date());
   }, []);
@@ -46,9 +48,12 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
 
   const handleClearData = () => {
     if (window.confirm('Clear ALL dashboard data? This cannot be undone.')) {
-      logService.clearLogs();
+      // Clear local data
+      localStorage.clear();
+      sessionStorage.clear();
       setServerEvents([]);
       refresh();
+      window.location.reload();
     }
   };
 
