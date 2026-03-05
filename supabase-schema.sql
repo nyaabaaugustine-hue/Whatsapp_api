@@ -70,14 +70,9 @@ CREATE POLICY "Anyone can create chat sessions" ON chat_sessions
 CREATE POLICY "Anyone can update chat sessions" ON chat_sessions
   FOR UPDATE USING (true);
 
--- Admins can view all
-CREATE POLICY "Admins can view all sessions" ON chat_sessions
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE id = auth.uid() AND role IN ('admin', 'company')
-    ) OR auth.uid() IS NULL
-  );
+-- Allow anyone to view sessions (for dashboard)
+CREATE POLICY "Anyone can view sessions" ON chat_sessions
+  FOR SELECT USING (true);
 
 -- ============================================
 -- 3. MESSAGES TABLE
@@ -111,14 +106,9 @@ ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can create messages" ON messages
   FOR INSERT WITH CHECK (true);
 
--- Admins can view all
-CREATE POLICY "Admins can view all messages" ON messages
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE id = auth.uid() AND role IN ('admin', 'company')
-    ) OR auth.uid() IS NULL
-  );
+-- Anyone can view messages (for dashboard)
+CREATE POLICY "Anyone can view messages" ON messages
+  FOR SELECT USING (true);
 
 -- ============================================
 -- 4. TRACKING LOGS TABLE
@@ -148,14 +138,9 @@ ALTER TABLE tracking_logs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can create tracking logs" ON tracking_logs
   FOR INSERT WITH CHECK (true);
 
--- Admins can view all
-CREATE POLICY "Admins can view all logs" ON tracking_logs
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE id = auth.uid() AND role IN ('admin', 'company')
-    ) OR auth.uid() IS NULL
-  );
+-- Anyone can view logs (for dashboard)
+CREATE POLICY "Anyone can view logs" ON tracking_logs
+  FOR SELECT USING (true);
 
 -- ============================================
 -- 5. BOOKINGS TABLE
@@ -191,15 +176,11 @@ ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can create bookings" ON bookings
   FOR INSERT WITH CHECK (true);
 
--- Admins can view and manage all
-CREATE POLICY "Admins can view all bookings" ON bookings
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE id = auth.uid() AND role IN ('admin', 'company')
-    ) OR auth.uid() IS NULL
-  );
+-- Anyone can view bookings (for dashboard)
+CREATE POLICY "Anyone can view bookings" ON bookings
+  FOR SELECT USING (true);
 
+-- Admins can update bookings
 CREATE POLICY "Admins can update bookings" ON bookings
   FOR UPDATE USING (
     EXISTS (
@@ -331,7 +312,36 @@ CREATE TRIGGER on_auth_user_created
 -- ON CONFLICT (id) DO UPDATE SET role = 'admin';
 
 -- ============================================
--- 9. VIEWS FOR ANALYTICS
+-- 9. EVENTS TABLE (for API logging)
+-- ============================================
+CREATE TABLE IF NOT EXISTS events (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  session_id TEXT,
+  event_type TEXT NOT NULL,
+  event_data JSONB,
+  lead_temperature TEXT,
+  intent TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  server_timestamp TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_events_session_id ON events(session_id);
+CREATE INDEX IF NOT EXISTS idx_events_created_at ON events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type);
+
+-- Enable RLS
+ALTER TABLE events ENABLE ROW LEVEL SECURITY;
+
+-- Allow public insert and select
+CREATE POLICY "Anyone can create events" ON events
+  FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Anyone can view events" ON events
+  FOR SELECT USING (true);
+
+-- ============================================
+-- 10. VIEWS FOR ANALYTICS
 -- ============================================
 
 -- View for session analytics
