@@ -29,6 +29,10 @@ function initNotifications() {
   try {
     if (!('Notification' in window)) return;
     let timer: number | null = null;
+    let lastGestureAt = 0;
+    const markGesture = () => { lastGestureAt = Date.now(); };
+    document.addEventListener('click', markGesture);
+    document.addEventListener('keydown', markGesture);
     const playTone = () => {
       try {
         const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -50,6 +54,9 @@ function initNotifications() {
       }
     };
     const checkDue = () => {
+      if (Notification.permission === 'default' && Date.now() - lastGestureAt < 5000) {
+        Notification.requestPermission().catch(() => {});
+      }
       if (Notification.permission === 'granted') {
         const due = popDue();
         if (due.length) {
@@ -85,6 +92,8 @@ function initNotifications() {
     window.addEventListener('beforeunload', () => {
       if (timer !== null) clearTimeout(timer);
       document.removeEventListener('visibilitychange', handleVisibility);
+      document.removeEventListener('click', markGesture);
+      document.removeEventListener('keydown', markGesture);
     });
     // If already granted, start immediately
     if (Notification.permission === 'granted') {
