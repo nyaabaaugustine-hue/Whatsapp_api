@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { logService, TrackingLog, Booking, ChatSession } from '../services/logService';
 import {
   ArrowLeft, BarChart3, Users, MessageSquare, TrendingUp,
@@ -12,7 +12,6 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
   const [logs, setLogs] = useState<TrackingLog[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedSession, setSelectedSession] = useState<ChatSession | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'sessions' | 'bookings' | 'logs'>('overview');
   const [lastRefresh, setLastRefresh] = useState(new Date());
@@ -51,7 +50,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
     }
   };
 
-  const downloadJSON = async () => {
+  const downloadJSON = () => {
     const blob = new Blob([logService.exportToJSON()], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url;
@@ -59,7 +58,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
     a.click(); URL.revokeObjectURL(url);
   };
 
-  const downloadCSV = async () => {
+  const downloadCSV = () => {
     const blob = new Blob([logService.exportToCSV()], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url;
@@ -350,7 +349,7 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
             <div className="px-6 py-4 border-b border-slate-700 flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-white">Conversation Viewer</h3>
-                <p className="text-xs text-slate-400 mt-1">{selectedSession.userInfo.name || 'Anonymous'} Â· {new Date(selectedSession.startTime).toLocaleString()}</p>
+                <p className="text-xs text-slate-400 mt-1">{selectedSession.userInfo.name || 'Anonymous'} · {new Date(selectedSession.startTime).toLocaleString()}</p>
               </div>
               <div className="flex items-center gap-3">
                 <span className={`text-xs font-bold px-2 py-1 rounded-full border ${tempColor(selectedSession.leadTemperature)}`}>
@@ -377,4 +376,3 @@ export function AdminPanel({ onBack }: AdminPanelProps) {
     </>
   );
 }
-

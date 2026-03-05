@@ -8,6 +8,9 @@ import { BookingModal } from './components/BookingModal';
 import { InstallPrompt } from './components/InstallPrompt';
 import ShortlistPanel from './components/ShortlistPanel';
 import GuidedWizardPlaceholder from './components/GuidedWizardPlaceholder';
+import { AuthGate } from './components/AuthGate';
+import OAuthConsent from './pages/OAuthConsent';
+import LoginPage from './pages/Login';
 
 const WA_ICON = (
   <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor">
@@ -32,6 +35,10 @@ export default function App() {
   const listing = cars.length > 6 ? cars.slice(3, 9) : cars.slice(0, 6);
   const [bookingModal, setBookingModal] = useState<{ carId: string; carName: string } | null>(null);
 
+  if (typeof window !== 'undefined' && window.location.pathname === '/oauth/consent') {
+    return <OAuthConsent />;
+  }
+
   // Lock body scroll when chat open (mobile full screen)
   useEffect(() => {
     if (isOpen) {
@@ -52,6 +59,7 @@ export default function App() {
       const h = window.location.hash;
       if (h === '#admin') setView('admin');
       else if (h === '#inventory') setView('inventory');
+      else if (h === '#login') setView('login' as any);
       else if (h.startsWith('#shortlist')) setView('shortlist');
       else if (h === '#wizard') setView('wizard');
       else setView('home');
@@ -107,13 +115,24 @@ export default function App() {
   }, []);
 
   if (view === 'admin') {
-    return <AdminDashboard />;
+    return (
+      <AuthGate required="admin">
+        <AdminDashboard />
+      </AuthGate>
+    );
   }
   if (view === 'inventory') {
-    return <InventoryPage onBack={() => { window.location.hash = ''; }} />;
+    return (
+      <AuthGate required={['admin','company'] as any}>
+        <InventoryPage onBack={() => { window.location.hash = ''; }} />
+      </AuthGate>
+    );
   }
   if (view === 'wizard') {
     return <GuidedWizardPlaceholder onBack={() => { window.location.hash = ''; }} />;
+  }
+  if (view === ('login' as any)) {
+    return <LoginPage />;
   }
   if (view === 'shortlist') {
     return (

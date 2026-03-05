@@ -1,4 +1,5 @@
-import { Message } from '../types';
+﻿import { Message } from '../types';
+import { supabase, isSupabaseConfigured } from './supabase';
 
 export interface UserInfo {
   name?: string;
@@ -31,65 +32,32 @@ export interface TrackingLog {
   timestamp: Date;
   intent: string;
   lead_temperature: string;
-  lead_score?: number;
   recommended_car_id?: string;
   messageText: string;
 }
 
-const STORAGE_KEYS = {
-  logs: 'abena_logs',
-  bookings: 'abena_bookings',
-  sessions: 'abena_sessions',
-};
-
-function loadFromStorage<T>(key: string): T[] {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    // Rehydrate Date objects
-    return parsed.map((item: any) => {
-      const rehydrated: any = { ...item };
-      ['timestamp', 'startTime', 'lastActivity'].forEach(field => {
-        if (rehydrated[field]) rehydrated[field] = new Date(rehydrated[field]);
-      });
-      if (rehydrated.messages) {
-        rehydrated.messages = rehydrated.messages.map((m: any) => ({
-          ...m,
-          timestamp: new Date(m.timestamp)
-        }));
-      }
-      return rehydrated;
-    });
-  } catch {
-    return [];
-  }
-}
-
-function saveToStorage<T>(key: string, data: T[]) {
-  try {
-    localStorage.setItem(key, JSON.stringify(data));
-  } catch (e) {
-    console.warn('Storage quota exceeded, trimming logs...');
-    // Trim oldest half if storage is full
-    const trimmed = (data as any[]).slice(Math.floor((data as any[]).length / 2));
-    localStorage.setItem(key, JSON.stringify(trimmed));
-  }
-}
-
 class LogService {
-  private logs: TrackingLog[] = loadFromStorage<TrackingLog>(STORAGE_KEYS.logs);
-  private bookings: Booking[] = loadFromStorage<Booking>(STORAGE_KEYS.bookings);
-  private chatSessions: ChatSession[] = loadFromStorage<ChatSession>(STORAGE_KEYS.sessions);
+  private logs: TrackingLog[] = [];
+  private bookings: Booking[] = [];
+  private chatSessions: ChatSession[] = [];
   private currentSession: ChatSession | null = null;
   private listeners: (() => void)[] = [];
-  private pendingQueue: any[] = (() => {
-    try { return JSON.parse(localStorage.getItem('abena_log_queue') || '[]'); } catch { return []; }
-  })();
+  private useSupabase: boolean;
 
-  startNewSession() {
+  constructor() {
+    this.useSupabase = isSupabaseConfigured();
+    if (this.useSupabase) {
+      console.log('✅ Supabase enabled for data persistence');
+    } else {
+      console.log('⚠️ Using in-memory storage (Supabase not configured)');
+    }
+  }
+
+  async startNewSession() {
+    const sessionId = `SESSION-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    
     this.currentSession = {
-      id: `SESSION-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      id: sessionId,
       startTime: new Date(),
       lastActivity: new Date(),
       userInfo: {},
@@ -97,187 +65,353 @@ class LogService {
       leadTemperature: 'cold',
       intent: 'browsing'
     };
-    this.chatSessions.unshift(this.currentSession);
-    saveToStorage(STORAGE_KEYS.sessions, this.chatSessions);
+
+    if (this.useSupabase) {
+      try {
+        const { error } = await supabase.from('chat_sessions').insert({
+          session_id: sessionId,
+          start_time: new Date().toISOString(),
+          last_activity: new Date().toISOString(),
+          lead_temperature: 'cold',
+          intent: 'browsing'
+        });
+
+        if (error) {
+          console.error('Supabase insert error:', error);
+          this.chatSessions.unshift(this.currentSession);
+        }
+      } catch (error) {
+        console.error('Supabase error:', error);
+        this.chatSessions.unshift(this.currentSession);
+      }
+    } else {
+      this.chatSessions.unshift(this.currentSession);
+    }
+    
     this.notify();
-    // Also persist to server
-    this.persistToServer('session_start', { sessionId: this.currentSession.id });
   }
 
-  addMessageToSession(message: Message) {
-    if (!this.currentSession) this.startNewSession();
+  async addMessageToSession(message: Message) {
+    if (!this.currentSession) {
+      await this.startNewSession();
+    }
+
     this.currentSession!.messages.push(message);
     this.currentSession!.lastActivity = new Date();
-    // Update session in storage
-    const idx = this.chatSessions.findIndex(s => s.id === this.currentSession!.id);
-    if (idx !== -1) this.chatSessions[idx] = this.currentSession!;
-    saveToStorage(STORAGE_KEYS.sessions, this.chatSessions);
-    // Persist message to server
-    this.persistToServer('message', {
-      sessionId: this.currentSession!.id,
-      sender: message.sender,
-      text: message.text,
-      timestamp: message.timestamp
-    });
-    this.notify();
-  }
 
-  updateUserInfo(userInfo: Partial<UserInfo>) {
-    if (!this.currentSession) this.startNewSession();
-    this.currentSession!.userInfo = { ...this.currentSession!.userInfo, ...userInfo };
-    const idx = this.chatSessions.findIndex(s => s.id === this.currentSession!.id);
-    if (idx !== -1) this.chatSessions[idx] = this.currentSession!;
-    saveToStorage(STORAGE_KEYS.sessions, this.chatSessions);
-    this.notify();
-  }
+    if (this.useSupabase) {
+      try {
+        const { error } = await supabase.from('messages').insert({
+          session_id: this.currentSession!.id,
+          message_id: message.id,
+          sender: message.sender,
+          text: message.text,
+          message_timestamp: message.timestamp.toISOString(),
+          attachment_type: message.attachment?.type,
+          attachment_data: message.attachment?.data,
+          attachment_url: message.attachment?.url,
+          ai_images: message.aiImages || [],
+          booking_car_id: message.bookingProposal?.carId,
+          booking_car_name: message.bookingProposal?.carName
+        });
 
-  updateSessionMetadata(leadTemperature?: string, intent?: string) {
-    if (this.currentSession) {
-      if (leadTemperature) this.currentSession.leadTemperature = leadTemperature as 'cold' | 'warm' | 'hot';
-      if (intent) this.currentSession.intent = intent;
-      const idx = this.chatSessions.findIndex(s => s.id === this.currentSession!.id);
-      if (idx !== -1) this.chatSessions[idx] = this.currentSession!;
-      saveToStorage(STORAGE_KEYS.sessions, this.chatSessions);
-      this.notify();
+        if (error) console.error('Supabase message insert error:', error);
+
+        await supabase
+          .from('chat_sessions')
+          .update({ last_activity: new Date().toISOString() })
+          .eq('session_id', this.currentSession!.id);
+      } catch (error) {
+        console.error('Supabase error:', error);
+      }
     }
+
+    this.notify();
   }
 
-  addLog(log: Omit<TrackingLog, 'id' | 'timestamp'>) {
+  async updateUserInfo(userInfo: Partial<UserInfo>) {
+    if (!this.currentSession) {
+      await this.startNewSession();
+    }
+
+    this.currentSession!.userInfo = {
+      ...this.currentSession!.userInfo,
+      ...userInfo
+    };
+
+    if (this.useSupabase) {
+      try {
+        await supabase
+          .from('chat_sessions')
+          .update({
+            user_name: userInfo.name,
+            user_phone: userInfo.phone,
+            user_email: userInfo.email
+          })
+          .eq('session_id', this.currentSession!.id);
+      } catch (error) {
+        console.error('Supabase error:', error);
+      }
+    }
+
+    this.notify();
+  }
+
+  async updateSessionMetadata(leadTemperature?: string, intent?: string) {
+    if (!this.currentSession) return;
+
+    if (leadTemperature) {
+      this.currentSession.leadTemperature = leadTemperature as 'cold' | 'warm' | 'hot';
+    }
+    if (intent) {
+      this.currentSession.intent = intent;
+    }
+
+    if (this.useSupabase) {
+      try {
+        const updates: any = {};
+        if (leadTemperature) updates.lead_temperature = leadTemperature;
+        if (intent) updates.intent = intent;
+
+        await supabase
+          .from('chat_sessions')
+          .update(updates)
+          .eq('session_id', this.currentSession.id);
+      } catch (error) {
+        console.error('Supabase error:', error);
+      }
+    }
+
+    this.notify();
+  }
+
+  async addLog(log: Omit<TrackingLog, 'id' | 'timestamp'>) {
+    const logId = Math.random().toString(36).substr(2, 9);
     const newLog: TrackingLog = {
       ...log,
-      id: Math.random().toString(36).substr(2, 9),
+      id: logId,
       timestamp: new Date(),
     };
-    this.logs.unshift(newLog);
-    saveToStorage(STORAGE_KEYS.logs, this.logs);
-    this.updateSessionMetadata(log.lead_temperature, log.intent);
-    this.persistToServer('tracking_log', newLog);
+
+    if (this.useSupabase) {
+      try {
+        await supabase.from('tracking_logs').insert({
+          log_id: logId,
+          session_id: this.currentSession?.id,
+          intent: log.intent,
+          lead_temperature: log.lead_temperature,
+          recommended_car_id: log.recommended_car_id,
+          message_text: log.messageText
+        });
+      } catch (error) {
+        console.error('Supabase error:', error);
+        this.logs.unshift(newLog);
+      }
+    } else {
+      this.logs.unshift(newLog);
+    }
+
+    await this.updateSessionMetadata(log.lead_temperature, log.intent);
     this.notify();
   }
 
-  addBooking(booking: Omit<Booking, 'id' | 'timestamp'>) {
+  async addBooking(booking: Omit<Booking, 'id' | 'timestamp'>) {
+    const bookingId = `BK-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
     const newBooking: Booking = {
       ...booking,
-      id: `BK-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+      id: bookingId,
       timestamp: new Date(),
       customer_name: this.currentSession?.userInfo.name,
       customer_phone: this.currentSession?.userInfo.phone,
     };
-    this.bookings.unshift(newBooking);
-    saveToStorage(STORAGE_KEYS.bookings, this.bookings);
-    this.addLog({
-      intent: 'booking_confirmed',
+
+    if (this.useSupabase) {
+      try {
+        await supabase.from('bookings').insert({
+          booking_id: bookingId,
+          session_id: this.currentSession?.id,
+          car_id: booking.car_id,
+          customer_email: booking.customer_email,
+          customer_name: newBooking.customer_name,
+          customer_phone: newBooking.customer_phone,
+          status: booking.status
+        });
+      } catch (error) {
+        console.error('Supabase error:', error);
+        this.bookings.unshift(newBooking);
+      }
+    } else {
+      this.bookings.unshift(newBooking);
+    }
+
+    await this.addLog({
+      intent: 'booking',
       lead_temperature: 'hot',
       recommended_car_id: booking.car_id,
-      messageText: `Booking confirmed for car ${booking.car_id}`
+      messageText: `Booking confirmed: ${bookingId}`
     });
-    this.persistToServer('booking', newBooking);
+
     this.notify();
     return newBooking;
   }
 
-  getLogs() { return this.logs; }
-  getBookings() { return this.bookings; }
-  getChatSessions() { return this.chatSessions; }
-  getCurrentSession() { return this.currentSession; }
-
-  clearCurrentSession() { this.currentSession = null; }
-
-  clearAllData() {
-    this.logs = [];
-    this.bookings = [];
-    this.chatSessions = [];
-    this.currentSession = null;
-    Object.values(STORAGE_KEYS).forEach(k => localStorage.removeItem(k));
-    this.notify();
-  }
-
-  private async persistToServer(eventType: string, data: any) {
-    try {
-      await fetch('/api/log', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          eventType,
-          sessionId: this.currentSession?.id || null,
-          data,
-          timestamp: new Date().toISOString()
-        })
-      });
-      // Flush queue if any after a successful send
-      if (this.pendingQueue.length > 0) this.flushQueue();
-    } catch {
-      // Queue and flush later
-      this.pendingQueue.push({
-        eventType,
-        sessionId: this.currentSession?.id || null,
-        data,
-        timestamp: new Date().toISOString()
-      });
-      try { localStorage.setItem('abena_log_queue', JSON.stringify(this.pendingQueue)); } catch {}
-    }
-  }
-
-  private async flushQueue() {
-    if (!navigator.onLine || this.pendingQueue.length === 0) return;
-    const items = [...this.pendingQueue];
-    this.pendingQueue = [];
-    try { localStorage.setItem('abena_log_queue', JSON.stringify(this.pendingQueue)); } catch {}
-    for (const it of items) {
+  async getLogs(): Promise<TrackingLog[]> {
+    if (this.useSupabase) {
       try {
-        await fetch('/api/log', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(it)
-        });
-      } catch {
-        this.pendingQueue.push(it);
+        const { data, error } = await supabase
+          .from('tracking_logs')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(100);
+
+        if (error) throw error;
+
+        return (data || []).map(row => ({
+          id: row.log_id,
+          timestamp: new Date(row.created_at),
+          intent: row.intent,
+          lead_temperature: row.lead_temperature,
+          recommended_car_id: row.recommended_car_id,
+          messageText: row.message_text
+        }));
+      } catch (error) {
+        console.error('Supabase fetch error:', error);
+        return this.logs;
       }
     }
-    try { localStorage.setItem('abena_log_queue', JSON.stringify(this.pendingQueue)); } catch {}
+    return this.logs;
   }
 
-  constructor() {
-    window.addEventListener('online', () => this.flushQueue());
-    // periodic flush
-    setInterval(() => this.flushQueue(), 15000);
+  async getBookings(): Promise<Booking[]> {
+    if (this.useSupabase) {
+      try {
+        const { data, error } = await supabase
+          .from('bookings')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        return (data || []).map(row => ({
+          id: row.booking_id,
+          timestamp: new Date(row.created_at),
+          car_id: row.car_id,
+          customer_email: row.customer_email,
+          customer_name: row.customer_name,
+          customer_phone: row.customer_phone,
+          status: row.status
+        }));
+      } catch (error) {
+        console.error('Supabase fetch error:', error);
+        return this.bookings;
+      }
+    }
+    return this.bookings;
   }
 
-  exportToJSON() {
+  async getChatSessions(): Promise<ChatSession[]> {
+    if (this.useSupabase) {
+      try {
+        const { data: sessions, error } = await supabase
+          .from('chat_sessions')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (error) throw error;
+
+        const sessionsWithMessages = await Promise.all(
+          (sessions || []).map(async (session) => {
+            const { data: messages } = await supabase
+              .from('messages')
+              .select('*')
+              .eq('session_id', session.session_id)
+              .order('message_timestamp', { ascending: true });
+
+            return {
+              id: session.session_id,
+              startTime: new Date(session.start_time),
+              lastActivity: new Date(session.last_activity),
+              userInfo: {
+                name: session.user_name,
+                phone: session.user_phone,
+                email: session.user_email
+              },
+              messages: (messages || []).map(msg => ({
+                id: msg.message_id,
+                text: msg.text,
+                sender: msg.sender,
+                timestamp: new Date(msg.message_timestamp),
+                attachment: msg.attachment_type ? {
+                  type: msg.attachment_type,
+                  data: msg.attachment_data,
+                  url: msg.attachment_url,
+                  mimeType: ''
+                } : undefined,
+                aiImages: msg.ai_images,
+                bookingProposal: msg.booking_car_id ? {
+                  carId: msg.booking_car_id,
+                  carName: msg.booking_car_name
+                } : undefined
+              })),
+              leadTemperature: session.lead_temperature as 'cold' | 'warm' | 'hot',
+              intent: session.intent
+            };
+          })
+        );
+
+        return sessionsWithMessages;
+      } catch (error) {
+        console.error('Supabase fetch error:', error);
+        return this.chatSessions;
+      }
+    }
+    return this.chatSessions;
+  }
+
+  getCurrentSession() {
+    return this.currentSession;
+  }
+
+  clearCurrentSession() {
+    this.currentSession = null;
+  }
+
+  async exportToJSON(): Promise<string> {
+    const logs = await this.getLogs();
+    const bookings = await this.getBookings();
+    const sessions = await this.getChatSessions();
+
     return JSON.stringify({
-      chatSessions: this.chatSessions,
-      bookings: this.bookings,
-      logs: this.logs,
-      exportDate: new Date().toISOString()
+      logs,
+      bookings,
+      chatSessions: sessions,
+      exportedAt: new Date().toISOString()
     }, null, 2);
   }
 
-  exportToCSV() {
-    const headers = ['Session ID', 'Start Time', 'Customer Name', 'Phone', 'Email', 'Lead Temp', 'Intent', 'Messages', 'Last Activity'];
-    const rows = this.chatSessions.map(s => [
-      s.id, s.startTime.toLocaleString(), s.userInfo.name || 'N/A',
-      s.userInfo.phone || 'N/A', s.userInfo.email || 'N/A',
-      s.leadTemperature, s.intent, s.messages.length.toString(),
-      s.lastActivity.toLocaleString()
-    ]);
-    return [headers, ...rows].map(r => r.join(',')).join('\n');
+  async exportToCSV(): Promise<string> {
+    const sessions = await this.getChatSessions();
+    
+    let csv = 'Session ID,Customer,Phone,Email,Messages,Lead Temp,Intent,Started,Last Activity\n';
+    
+    sessions.forEach(session => {
+      csv += `"${session.id}","${session.userInfo.name || 'Anonymous'}","${session.userInfo.phone || 'N/A'}","${session.userInfo.email || 'N/A'}",${session.messages.length},"${session.leadTemperature}","${session.intent}","${session.startTime.toISOString()}","${session.lastActivity.toISOString()}"\n`;
+    });
+
+    return csv;
   }
 
-  exportBookingsToCSV() {
-    const headers = ['Booking ID', 'Timestamp', 'Customer Name', 'Phone', 'Email', 'Car ID', 'Status'];
-    const rows = this.bookings.map(b => [
-      b.id, b.timestamp.toLocaleString(), b.customer_name || 'N/A',
-      b.customer_phone || 'N/A', b.customer_email || 'N/A', b.car_id, b.status
-    ]);
-    return [headers, ...rows].map(r => r.join(',')).join('\n');
+  subscribe(callback: () => void) {
+    this.listeners.push(callback);
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== callback);
+    };
   }
 
-  subscribe(listener: () => void) {
-    this.listeners.push(listener);
-    return () => { this.listeners = this.listeners.filter(l => l !== listener); };
+  private notify() {
+    this.listeners.forEach(listener => listener());
   }
-
-  private notify() { this.listeners.forEach(l => l()); }
 }
 
 export const logService = new LogService();

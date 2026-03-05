@@ -213,19 +213,20 @@ function guardrailReply(lang: string) {
   return map[key] || map.en;
 }
 
-export async function sendChatMessage(messages: Message[], newMessage: string, attachment?: Attachment, leadName?: string, pendingQuestion?: string) {
+export async function sendChatMessage(messages: Message[], newMessage: string, attachment?: Attachment, leadName?: string, pendingQuestion?: string, sessionMemory?: any) {
   const conversationContext = messages
     .map(msg => `${msg.sender === 'user' ? 'User' : 'Assistant'}: ${msg.text}`)
     .join('\n');
 
   const allText = [...messages.map(m => m.text), newMessage].join('\n');
   const memory = {
-    buyerProfile: parseBuyerProfile(allText),
-    priority: parsePriority(allText),
-    financing: parseFinancing(allText),
-    carType: parseCarType(allText),
-    budget: parseBudget(allText),
+    buyerProfile: sessionMemory?.purpose || parseBuyerProfile(allText),
+    priority: sessionMemory?.priority || parsePriority(allText),
+    financing: sessionMemory?.financing || parseFinancing(allText),
+    carType: sessionMemory?.carType || parseCarType(allText),
+    budget: sessionMemory?.budget || parseBudget(allText),
     location: parseLocation(allText),
+    askedQuestions: sessionMemory?.askedQuestions ? Array.from(sessionMemory.askedQuestions) : []
   };
   const userLang = detectLanguage(newMessage);
   if (isToxicOrFraud(newMessage)) {
@@ -240,8 +241,13 @@ export async function sendChatMessage(messages: Message[], newMessage: string, a
   const fullPrompt = `${SYSTEM_INSTRUCTION}
 
 Customer name (use naturally, not every message): ${leadName || 'unknown'}
-Known memory (use if present):
-${JSON.stringify(memory)}
+
+CRITICAL - Known customer preferences (NEVER ask about these again):
+${JSON.stringify(memory, null, 2)}
+
+Questions already asked (DO NOT repeat): ${memory.askedQuestions.join(', ')}
+
+IMPORTANT: If you already know the customer's purpose, priority, financing preference, budget, or car type from the memory above, DO NOT ask about it again. Move the conversation forward by recommending cars or asking about other aspects like location, timeline, or specific features.
 
 Open question pending (answer this before asking anything else): ${pendingQuestion || 'none'}
 

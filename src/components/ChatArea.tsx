@@ -75,6 +75,19 @@ export function ChatArea({ onClose }: ChatAreaProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [flow, setFlow] = useState<{ stage: 'idle' | 'budget' | 'type' | 'timeline' | 'results'; budget?: string; carType?: string; timeline?: string }>({ stage: 'idle' });
   const [openQuestion, setOpenQuestion] = useState<'purpose' | 'priority' | 'financing' | 'budget' | 'type' | null>(null);
+  
+  // Comprehensive session memory - never ask the same question twice
+  const [sessionMemory, setSessionMemory] = useState<{
+    purpose?: string;
+    priority?: string;
+    financing?: 'full' | 'financing';
+    budget?: number;
+    carType?: string;
+    askedQuestions: Set<string>;
+  }>({
+    askedQuestions: new Set()
+  });
+  const [budgetSliderShown, setBudgetSliderShown] = useState(false);
 
   // Type out greeting word-by-word on mount (after lead modal dismissed)
   useEffect(() => {
@@ -405,6 +418,8 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     if (s.includes('strong')) return 'Pickup';
     if (s.includes('long journey') || s.includes('long trip') || s.includes('road trip')) return 'SUV';
     if (s.includes('electric') || s.includes('hybrid')) return 'Electric';
+    // Handle "any" or "recommend" as valid responses
+    if (s.includes('any') || s.includes('recommend') || s.includes('suggest') || s.includes('either')) return 'Any';
     return undefined;
   }
 
@@ -426,9 +441,10 @@ export function ChatArea({ onClose }: ChatAreaProps) {
     if (/^2$/.test(trimmed)) return 'Easy Maintenance';
     if (/^3$/.test(trimmed)) return 'Strong Resale Value';
     if (/^4$/.test(trimmed)) return 'Comfort';
-    if (s.includes('fuel')) return 'Fuel Efficiency';
-    if (s.includes('maintenance') || s.includes('service')) return 'Easy Maintenance';
-    if (s.includes('resale') || s.includes('resell')) return 'Strong Resale Value';
+    // More flexible matching
+    if (s.includes('fuel') || s.includes('efficiency') || s.includes('economy')) return 'Fuel Efficiency';
+    if (s.includes('maintenance') || s.includes('service') || s.includes('maintain')) return 'Easy Maintenance';
+    if (s.includes('resale') || s.includes('resell') || s.includes('value')) return 'Strong Resale Value';
     if (s.includes('comfort') || s.includes('spacious')) return 'Comfort';
     if (s.includes('power') || s.includes('performance')) return 'Power';
     if (s.includes('business use') || s.includes('business')) return 'Business Use';
@@ -438,7 +454,9 @@ export function ChatArea({ onClose }: ChatAreaProps) {
   function parseFinancing(input: string): 'full' | 'financing' | undefined {
     const s = input.toLowerCase();
     if (s.includes('finance') || s.includes('financing') || s.includes('installment') || s.includes('monthly')) return 'financing';
-    if (s.includes('cash') || s.includes('full') || s.includes('pay in full')) return 'full';
+    if (s.includes('cash') || s.includes('full') || s.includes('pay in full') || s.includes('paying full') || s.includes('outright')) return 'full';
+    // Handle negative responses as "not financing" = "full payment"
+    if (s === 'no' || s === 'nope' || s === 'nah') return 'full';
     return undefined;
   }
 
@@ -1144,11 +1162,52 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       const answered = (() => {
         if (!openQuestion) return true;
         const t = text;
-        if (openQuestion === 'purpose') return !!parseBuyerProfile(t);
-        if (openQuestion === 'priority') return !!parsePriority(t);
-        if (openQuestion === 'financing') return !!parseFinancing(t);
-        if (openQuestion === 'budget') return !!parseBudget(t);
-        if (openQuestion === 'type') return !!parseType(t);
+        
+        if (openQuestion === 'purpose') {
+          const purpose = parseBuyerProfile(t);
+          if (purpose) {
+            setSessionMemory(prev => ({ ...prev, purpose, askedQuestions: new Set([...prev.askedQuestions, 'purpose']) }));
+            return true;
+          }
+          return false;
+        }
+        
+        if (openQuestion === 'priority') {
+          const priority = parsePriority(t);
+          if (priority) {
+            setSessionMemory(prev => ({ ...prev, priority, askedQuestions: new Set([...prev.askedQuestions, 'priority']) }));
+            return true;
+          }
+          return false;
+        }
+        
+        if (openQuestion === 'financing') {
+          const financing = parseFinancing(t);
+          if (financing) {
+            setSessionMemory(prev => ({ ...prev, financing, askedQuestions: new Set([...prev.askedQuestions, 'financing']) }));
+            return true;
+          }
+          return false;
+        }
+        
+        if (openQuestion === 'budget') {
+          const budget = parseBudget(t);
+          if (budget) {
+            setSessionMemory(prev => ({ ...prev, budget, askedQuestions: new Set([...prev.askedQuestions, 'budget']) }));
+            return true;
+          }
+          return false;
+        }
+        
+        if (openQuestion === 'type') {
+          const carType = parseType(t);
+          if (carType) {
+            setSessionMemory(prev => ({ ...prev, carType, askedQuestions: new Set([...prev.askedQuestions, 'type']) }));
+            return true;
+          }
+          return false;
+        }
+        
         return true;
       })();
       if (answered && openQuestion) setOpenQuestion(null);
@@ -1200,7 +1259,7 @@ export function ChatArea({ onClose }: ChatAreaProps) {
         setIsLoading(false);
         return;
       }
-      let responseText = await sendChatMessage(currentMessages, text, attachment, leadInfo?.name, openQuestion || undefined as any);
+      let responseText = await sendChatMessage(currentMessages, text, attachment, leadInfo?.name, openQuestion || undefined as any, sessionMemory);
       const aiImages: string[] = [];
       let bookingProposal: { carId: string; carName: string } | undefined;
       let usedLocalDemo = false;
@@ -1312,9 +1371,15 @@ export function ChatArea({ onClose }: ChatAreaProps) {
         : undefined;
 
       const budgetPrompt = /budget|price range|how much|range/i.test(responseText.toLowerCase());
-      const budgetSlider = budgetPrompt
+      // Only show budget slider once per session and if budget not already set
+      const budgetSlider = (budgetPrompt && !budgetSliderShown && !sessionMemory.budget && !sessionMemory.askedQuestions.has('budget'))
         ? { min: 60000, max: 500000, step: 5000, unit: 'GHS' }
         : undefined;
+      
+      // Mark slider as shown if we're displaying it
+      if (budgetSlider) {
+        setBudgetSliderShown(true);
+      }
 
       const scheduleWidget = bookingProposal
         ? { carId: bookingProposal.carId, carName: bookingProposal.carName }
@@ -1364,14 +1429,19 @@ export function ChatArea({ onClose }: ChatAreaProps) {
 
       logService.addMessageToSession(finalMsg);
       const qr = localQuickReplies || finalMsg.quickReplies;
-      if (budgetSlider) setOpenQuestion('budget');
-      else if (qr && qr.length) {
-        const ids = qr.map(q => q.id).join(' ');
-        if (/(\bp_)/.test(ids)) setOpenQuestion('purpose');
-        else if (/(\bpr_)/.test(ids)) setOpenQuestion('priority');
-        else if (/(\bpay_)/.test(ids)) setOpenQuestion('financing');
-        else if (/(\btype_)/.test(ids)) setOpenQuestion('type');
-        else if (/(\bb_)/.test(ids)) setOpenQuestion('budget');
+      // Only set openQuestion if we're asking a NEW question (not if user just answered)
+      // AND if we haven't already asked this question before
+      if (!answered) {
+        if (budgetSlider && !sessionMemory.askedQuestions.has('budget')) {
+          setOpenQuestion('budget');
+        } else if (qr && qr.length) {
+          const ids = qr.map(q => q.id).join(' ');
+          if (/(\bp_)/.test(ids) && !sessionMemory.askedQuestions.has('purpose')) setOpenQuestion('purpose');
+          else if (/(\bpr_)/.test(ids) && !sessionMemory.askedQuestions.has('priority')) setOpenQuestion('priority');
+          else if (/(\bpay_)/.test(ids) && !sessionMemory.askedQuestions.has('financing')) setOpenQuestion('financing');
+          else if (/(\btype_)/.test(ids) && !sessionMemory.askedQuestions.has('type')) setOpenQuestion('type');
+          else if (/(\bb_)/.test(ids) && !sessionMemory.askedQuestions.has('budget')) setOpenQuestion('budget');
+        }
       }
       track('message_received', { length: finalMsg.text.length, images: (finalMsg.aiImages || []).length });
       lastAiActivityRef.current = Date.now();
@@ -1510,22 +1580,27 @@ export function ChatArea({ onClose }: ChatAreaProps) {
       return;
     }
     if (value === 'under_100k') {
+      setSessionMemory(prev => ({ ...prev, budget: 100000, askedQuestions: new Set([...prev.askedQuestions, 'budget']) }));
       handleSendMessage('100000');
       return;
     }
     if (value === '150000') {
+      setSessionMemory(prev => ({ ...prev, budget: 150000, askedQuestions: new Set([...prev.askedQuestions, 'budget']) }));
       handleSendMessage('150000');
       return;
     }
     if (value === '200000') {
+      setSessionMemory(prev => ({ ...prev, budget: 200000, askedQuestions: new Set([...prev.askedQuestions, 'budget']) }));
       handleSendMessage('200000');
       return;
     }
     if (value === '250000') {
+      setSessionMemory(prev => ({ ...prev, budget: 250000, askedQuestions: new Set([...prev.askedQuestions, 'budget']) }));
       handleSendMessage('250000');
       return;
     }
     if (value === '300000+') {
+      setSessionMemory(prev => ({ ...prev, budget: 300000, askedQuestions: new Set([...prev.askedQuestions, 'budget']) }));
       handleSendMessage('300000');
       return;
     }

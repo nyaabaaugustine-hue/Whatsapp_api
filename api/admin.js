@@ -27,6 +27,38 @@ function buildConversations(raw) {
   return convos;
 }
 
+function buildConversationsFromSessions(sessions) {
+  return sessions.map(session => ({
+    session_id: session.id,
+    started_at: session.startTime.toISOString(),
+    last_message_at: session.lastActivity.toISOString(),
+    message_count: session.messages.length,
+    lead_temperature: session.leadTemperature,
+    intent: session.intent,
+    user_name: session.userInfo.name,
+    user_phone: session.userInfo.phone,
+    user_email: session.userInfo.email,
+    messages: session.messages.map(msg => ({
+      session_id: session.id,
+      role: msg.sender === 'user' ? 'user' : 'assistant',
+      content: msg.text,
+      metadata: null,
+      created_at: msg.timestamp.toISOString(),
+    })),
+  }));
+}
+
+function buildEventsFromLogs(logs) {
+  return logs.map(log => ({
+    session_id: 'unknown',
+    event_type: log.intent || 'event',
+    event_data: { messageText: log.messageText, recommended_car_id: log.recommended_car_id },
+    lead_temperature: log.lead_temperature,
+    intent: log.intent,
+    created_at: log.timestamp.toISOString(),
+  }));
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -41,6 +73,107 @@ module.exports = async function handler(req, res) {
   }
 
   const type = (req.query?.type || req.url.split('type=')[1] || '').toString();
+  
+  try {
+    const { createClient } = require('@supabase/supabase-js');
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
+    const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || '';
+    
+    if (supabaseUrl && supabaseKey) {
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      
+      if (type.includes('conversations')) {
+        const { data: sessions, error } = await supabase
+          .from('chat_sessions')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(100);
+
+        if (!error && sessions && sessions.length > 0) {
+          const conversationsWithMessages = await Promise.all(
+            sessions.map(async (session) => {
+              const { data: messages } = await supabase
+                .from('messages')
+                .select('*')
+                .eq('session_id', session.session_id)
+                .order('message_timestamp', { ascending: true });
+
+              return {
+                session_id: session.session_id,
+                started_at: session.start_time,
+                last_message_at: session.last_activity,
+                message_count: messages?.length || 0,
+                lead_temperature: session.lead_temperature,
+                intent: session.intent,
+                user_name: session.user_name,
+                user_phone: session.user_phone,
+                user_email: session.user_email,
+                messages: (messages || []).map(msg => ({
+                  session_id: session.session_id,
+                  role: msg.sender === 'user' ? 'user' : 'assistant',
+                  content: msg.text,
+                  metadata: null,
+                  created_at: msg.message_timestamp,
+                })),
+              };
+            })
+          );
+          return res.status(200).json(conversationsWithMessages);
+        }
+      }
+
+      if (type.includes('events')) {
+        const { data: logs, error } = await supabase
+          .from('tracking_logs')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(200);
+
+        if (!error && logs && logs.length > 0) {
+          const events = logs.map(log => ({
+            session_id: log.session_id || 'unknown',
+            event_type: log.intent || 'event',
+            event_data: { messageText: log.message_text, recommended_car_id: log.recommended_car_id },
+            lead_temperature: log.lead_temperature,
+            intent: log.intent,
+            created_at: log.created_at,
+          }));
+          return res.status(200).json(events);
+        }
+      }
+
+      if (type.includes('stats')) {
+        const [sessionsRes, logsRes, bookingsRes] = await Promise.all([
+          supabase.from('chat_sessions').select('*', { count: 'exact' }),
+          supabase.from('tracking_logs').select('*'),
+          supabase.from('bookings').select('*', { count: 'exact' }),
+        ]);
+
+        const sessions = sessionsRes.data || [];
+        const logs = logsRes.data || [];
+        const bookingsCount = bookingsRes.count || 0;
+
+        const hotLeads = sessions.filter(s => s.lead_temperature === 'hot').length;
+        const warmLeads = sessions.filter(s => s.lead_temperature === 'warm').length;
+        const coldLeads = sessions.filter(s => s.lead_temperature === 'cold').length;
+        
+        const totalMessages = logs.filter(l => l.intent === 'message' || l.message_text).length;
+
+        const stats = {
+          totalSessions: sessions.length,
+          totalMessages,
+          hotLeads,
+          warmLeads,
+          coldLeads,
+          bookings: bookingsCount,
+        };
+        return res.status(200).json(stats);
+      }
+    }
+  } catch (err) {
+    console.error('Supabase error, falling back to file:', err);
+  }
+
   const LOG_FILE = '/tmp/abena_events.jsonl';
   const lines = fs.existsSync(LOG_FILE) ? fs.readFileSync(LOG_FILE, 'utf8').trim().split('\n').filter(Boolean) : [];
   const raw = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
@@ -54,7 +187,6 @@ module.exports = async function handler(req, res) {
     created_at: r.timestamp || new Date().toISOString(),
   }));
 
-  // Lazy memoization for conversations within this request
   let convosCache = null;
   const getConvos = () => {
     if (!convosCache) convosCache = buildConversations(raw);
